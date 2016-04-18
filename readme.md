@@ -21,4 +21,6 @@ https://localhost:8443/address -> address information without binary stuff (need
 Create self-signed certificate
 ------------------------------
 openssl req -x509 -sha256 -newkey rsa:2048 -keyout certificate.key -out certificate.crt -days 1024 -nodes -subj '/CN=localhost'
-
+or
+eidonkey --gencert
+it will generate cert.crt and cert.key (unprotected private key) in the current directory, which can directly be used by the service.

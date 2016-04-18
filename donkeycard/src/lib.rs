@@ -1,5 +1,7 @@
 extern crate libc;
 pub mod pcsc;
+use std::io::prelude::*;
+use std::fs::File;
 
 static IDENTITY_FILE_ID: &'static[u8]		= &[0x00, 0xA4, 0x08, 0x0C, 0x06, 0x3F, 0x00, 0xDF, 0x01, 0x40, 0x31];
 static IDENTITY_SIGN_FILE_ID: &'static[u8] 	= &[0x00, 0xA4, 0x08, 0x0C, 0x06, 0x3F, 0x00, 0xDF, 0x01, 0x40, 0x32];
@@ -48,6 +50,10 @@ pub struct EIdAddress {
 	pub address: String,
 	pub bin_address: Vec<u8>,
 	pub signature: Vec<u8>,
+}
+
+pub struct EIdPhoto {
+	pub photo: Vec<u8>,
 }
 
 fn get_data_len(data: & Vec<u8>, offset: usize) -> (u32, u32) {
@@ -145,6 +151,8 @@ impl EIdDonkeyCard {
 		let id_res = self.read_file(IDENTITY_FILE_ID);
 		match id_res {
 			Ok(id) => {
+				let mut f = File::create("identity.bin").unwrap();
+				f.write_all(&id);
 				let id_sig_res = self.read_file(IDENTITY_SIGN_FILE_ID);
 				match id_sig_res {
 					Ok(id_sig) => {
@@ -190,13 +198,6 @@ impl EIdDonkeyCard {
 						pos = pos + len.1 as usize;
 						println!("pos : {}", pos);
 						let s_national_number = copy_vector_to_string(&id, pos, len.0);
-						pos = pos + len.0 as usize;
-						println!("name tag : {}", id[pos]);
-						pos = pos + 1;
-						len = get_data_len(&id, pos);
-						pos = pos + len.1 as usize;
-						println!("pos : {}", pos);
-						let s_name = copy_vector_to_string(&id, pos, len.0);
 						pos = pos + len.0 as usize;
 						println!("name tag : {}", id[pos]);
 						pos = pos + 1;
@@ -338,6 +339,18 @@ impl EIdDonkeyCard {
 					},
 					Err(e) => Err(e),
 				}
+			},
+			Err(e) => Err(e),
+		}
+	}
+
+	pub fn reead_photo(&self) -> Result< EIdPhoto, u32> {
+		let photo_res = self.read_file(PHOTO_FILE_ID);
+		match photo_res {
+			Ok(img) => {
+				Ok(EIdPhoto {
+					photo: img
+				})
 			},
 			Err(e) => Err(e),
 		}

@@ -40,24 +40,30 @@ fn identity() -> String {
 	 		\"delivery_municipality\":\"{}\",\
 	 		\"national_number\":\"{}\",\
 	 		\"name\":\"{}\",\
+	 		\"second_first_name\":\"{}\",\
 	 		\"third_first_name\":\"{}\",\
 	 		\"nationality\":\"{}\",\
 	 		\"birth_location\":\"{}\",\
 	 		\"birth_date\":\"{}\",\
 	 		\"sex\":\"{}\",\
-	 		\"document_type\":\"{}\"}}}}", 
+	 		\"noble condition\":\"{}\",\
+	 		\"document type\":\"{}\",\
+	 		\"special status\":\"{}\"}}}}", 
 	 							identity.card_number, 
 	 							identity.validity_begin, 
 	 							identity.validity_end, 
 	 							identity.delivery_municipality, 
 	 							identity.national_number, 
-	 							identity.name, 
+	 							identity.name,
+	 							identity.second_first_name.unwrap(),
 	 							identity.third_first_name, 
 	 							identity.nationality, 
 	 							identity.birth_location, 
 	 							identity.birth_date, 
 	 							identity.sex, 
-	 							identity.document_type)
+	 							identity.noble_condition.unwrap(),
+	 							identity.document_type,
+	 							identity.special_status.unwrap())
 }
 
 fn address() -> String {
@@ -70,6 +76,9 @@ fn address() -> String {
 }
 
 // Library of core handler 
+const SERVER_CERTIFICATE_FILE: &'static str = "cert.crt";
+const SERVER_PRIVATE_KEY_FILE: &'static str = "cert.key";
+
 fn call_route_post_handler(uri: &str) -> Option<Vec<u8>> {
 	match uri {
 	    "/sign" => Some(sign().into_bytes()),
@@ -147,8 +156,9 @@ fn main_handler(req: Request, mut res: Response) {
 	}
 }
 
+// Thighten the SSL server protocols: TLS1.2 only
 fn start_server() {
-	let ssl = Openssl::with_cert_and_key("./cert.crt", "./cert.key").unwrap();
+	let ssl = Openssl::with_cert_and_key(SERVER_CERTIFICATE_FILE, SERVER_PRIVATE_KEY_FILE).unwrap();
 	Server::https("127.0.0.1:8443", ssl).unwrap().handle(main_handler).unwrap();
 }
 
@@ -173,11 +183,11 @@ fn generate_self_signed_certificate() {
 
 	let (cert, pkey) = gen.generate().unwrap();
 
-	let cert_path = "cert.crt";
+	let cert_path = SERVER_CERTIFICATE_FILE;
 	let mut file = File::create(cert_path).unwrap();
 	assert!(cert.write_pem(&mut file).is_ok());
 
-	let pkey_path = "cert.key";
+	let pkey_path = SERVER_PRIVATE_KEY_FILE;
 	let mut file = File::create(pkey_path).unwrap();
 	assert!(pkey.write_pem(&mut file).is_ok());
 }
