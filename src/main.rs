@@ -2,6 +2,7 @@ extern crate hyper;
 extern crate openssl;
 extern crate getopts;
 extern crate donkeycard;
+extern crate data_encoding;
 
 use std::io::Write;
 use std::env;
@@ -21,6 +22,8 @@ use getopts::Options;
 
 use donkeycard::EIdDonkeyCard;
 
+use data_encoding::base64;
+
 fn sign() -> String {
     "{\"result\":\"nok\",\"reason\":\"not_implemented\"}".to_string()
 }
@@ -34,36 +37,48 @@ fn identity() -> String {
 	let eid_card = EIdDonkeyCard::new(reader).unwrap();
 	let identity = eid_card.read_identity().unwrap();
 
-	format!("{{\"result\":\"ok\",\"identity\":{{\"card_number\":\"{}\",\
-	 		\"validity_begin\":\"{}\",\
-	 		\"validity_end\":\"{}\",\
-	 		\"delivery_municipality\":\"{}\",\
-	 		\"national_number\":\"{}\",\
-	 		\"name\":\"{}\",\
-	 		\"second_first_name\":\"{}\",\
-	 		\"third_first_name\":\"{}\",\
-	 		\"nationality\":\"{}\",\
-	 		\"birth_location\":\"{}\",\
-	 		\"birth_date\":\"{}\",\
-	 		\"sex\":\"{}\",\
-	 		\"noble condition\":\"{}\",\
-	 		\"document type\":\"{}\",\
-	 		\"special status\":\"{}\"}}}}", 
-	 							identity.card_number, 
+	format!("{{\"result\":\"ok\",\
+				\"identity\":{{\"card_number\":\"{}\",\
+			 		\"chip_number\":\"{}\",\
+		 			\"validity_begin\":\"{}\",\
+			 		\"validity_end\":\"{}\",\
+			 		\"delivery_municipality\":\"{}\",\
+		 			\"national_number\":\"{}\",\
+		 			\"name\":\"{}\",\
+			 		\"second_first_name\":\"{}\",\
+			 		\"third_first_name\":\"{}\",\
+		 			\"nationality\":\"{}\",\
+		 			\"birth_location\":\"{}\",\
+			 		\"birth_date\":\"{}\",\
+			 		\"sex\":\"{}\",\
+		 			\"noble_condition\":\"{}\",\
+		 			\"document_type\":\"{}\",\
+			 		\"special_status\":\"{}\",
+			 		\"hash_photo\":\"{}\"\
+			 	}},
+				\"identity_raw\":\"{}\",
+				\"signature\":\"{}\"		 	
+		 	}}", 
+	 							identity.card_number,
+	 							base64::encode(&identity.chip_number), 
 	 							identity.validity_begin, 
 	 							identity.validity_end, 
 	 							identity.delivery_municipality, 
 	 							identity.national_number, 
 	 							identity.name,
-	 							identity.second_first_name.unwrap(),
+	 							identity.second_first_name.unwrap_or("null".to_string()),
 	 							identity.third_first_name, 
 	 							identity.nationality, 
 	 							identity.birth_location, 
 	 							identity.birth_date, 
 	 							identity.sex, 
-	 							identity.noble_condition.unwrap(),
+	 							identity.noble_condition.unwrap_or("null".to_string()),
 	 							identity.document_type,
-	 							identity.special_status.unwrap())
+	 							identity.special_status.unwrap_or("null".to_string()),
+	 							base64::encode(&identity.hash_photo),
+	 							base64::encode(&identity.identity),
+	 							base64::encode(&identity.signature)
+	 							)
 }
 
 fn address() -> String {
@@ -71,9 +86,31 @@ fn address() -> String {
 	let eid_card = EIdDonkeyCard::new(reader).unwrap();
 	let address = eid_card.read_address().unwrap();
 
-	format!("{{\"result\":\"ok\",\"identity\":{{\"address\":\"{}\"}}}}", 
-	 							address.address)
+	format!("{{\"result\":\"ok\",\
+				\"address\":{{\
+					\"street\":\"{}\",\
+					\"postal_code\":\"{}\",\
+					\"city\":\"{}\"\
+				}},\
+				\"address_raw\":\"{}\",\
+				\"signature\":\"{}\"\
+			}}", 
+			address.street,
+			address.postal_code,
+			address.city,
+			base64::encode(&address.address),
+			base64::encode(&address.signature))
 }
+
+fn photo() -> String {
+	let ref reader = EIdDonkeyCard::list_readers().unwrap()[0];
+	let eid_card = EIdDonkeyCard::new(reader).unwrap();
+	let photo = eid_card.read_photo().unwrap();
+
+	format!("{{\"result\":\"ok\",\"photo\":\"{}\"}}", 
+	 							base64::encode(&photo.photo))
+}
+
 
 // Library of core handler 
 const SERVER_CERTIFICATE_FILE: &'static str = "cert.crt";
@@ -113,6 +150,7 @@ fn call_route_get_handler(uri: &str) -> Option<Vec<u8>> {
 	    "/version" => Some(version().into_bytes()),
 	    "/identity" => Some(identity().into_bytes()),
 	    "/address" => Some(address().into_bytes()),
+	    "/photo" => Some(photo().into_bytes()),
 	    _ => None,
 	}
 }
