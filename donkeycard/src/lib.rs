@@ -47,8 +47,10 @@ pub struct EIdIdentity {
 }
 
 pub struct EIdAddress {
-	pub address: String,
-	pub bin_address: Vec<u8>,
+	pub street: String,
+	pub postal_code: String,
+	pub city: String,
+	pub address: Vec<u8>,
 	pub signature: Vec<u8>,
 }
 
@@ -330,10 +332,32 @@ impl EIdDonkeyCard {
 				let address_sig_res = self.read_file(ADDRESS_SIGN_FILE_ID);
 				match address_sig_res {
 					Ok(address_sig) => {
-						let s_addr = String::from_utf8(addr.clone()).unwrap();
+						let mut pos: usize = 0;
+						println!("street tag : {}", addr[pos]);
+						pos = pos + 1;
+						let mut len = get_data_len(&addr, pos);
+						pos = pos + len.1 as usize;
+						println!("pos : {}", pos);
+						let s_street = copy_vector_to_string(&addr, pos, len.0);
+						pos = pos + len.0 as usize;
+						println!("postal code tag : {}", addr[pos]);
+						pos = pos + 1;
+						len = get_data_len(&addr, pos);
+						pos = pos + len.1 as usize;
+						println!("pos : {}", pos);
+						let s_postal_code = copy_vector_to_string(&addr, pos, len.0);
+						pos = pos + len.0 as usize;
+						println!("city tag : {}", addr[pos]);
+						pos = pos + 1;
+						len = get_data_len(&addr, pos);
+						pos = pos + len.1 as usize;
+						println!("pos : {}", pos);
+						let s_city = copy_vector_to_string(&addr, pos, len.0);
 						Ok(EIdAddress{
-							address: s_addr,
-							bin_address: addr,
+							street: s_street,
+							postal_code: s_postal_code,
+							city: s_city,
+							address: addr,
 							signature: address_sig			
 						})
 					},
@@ -344,7 +368,7 @@ impl EIdDonkeyCard {
 		}
 	}
 
-	pub fn reead_photo(&self) -> Result< EIdPhoto, u32> {
+	pub fn read_photo(&self) -> Result< EIdPhoto, u32> {
 		let photo_res = self.read_file(PHOTO_FILE_ID);
 		match photo_res {
 			Ok(img) => {
