@@ -123,6 +123,25 @@ fn photo(eid_card: EIdDonkeyCard) -> String {
 	}	
 }
 
+fn status(eid_card: EIdDonkeyCard) -> String {
+	let status_res = eid_card.get_status();
+
+	match status_res {
+		Ok(status) => format!("{{\"result\":\"ok\",\"status\":
+									{{\"reader_name\":\"{}\",\
+										\"protocol\":\"{}\",\
+										\"atr\":\"{}\"\
+									}}\
+								}}", 
+	 							status.reader_name,
+	 							status.protocol,
+	 							base64::encode(&status.atr)),
+		Err(e) => format!("{{\"result\":\"nok\",\
+			     			\"error_code\":\"{}\",\
+			     			\"error_msg\":\"{}\"\
+			     			}}", e,  EIdDonkeyCard::get_error_message(e))
+	}	
+}
 
 // Library of core handler 
 const SERVER_CERTIFICATE_FILE: &'static str = "cert.crt";
@@ -195,6 +214,16 @@ fn call_route_get_handler(uri: &str) -> Option<Vec<u8>> {
 	    "/photo" => {
 	    	match connect_card() {
 	    		Ok(card) => Some(photo(card).into_bytes()),
+		    	Err(e) => Some(format!("{{\"result\":\"nok\",\
+			     			\"error_code\":\"{}\",\
+			     			\"error_msg\":\"{}\"\
+			     			}}", e, EIdDonkeyCard::get_error_message(e)).into_bytes())
+	    	}
+	    	
+	    },
+	    "/status" => {
+	    	match connect_card() {
+	    		Ok(card) => Some(status(card).into_bytes()),
 		    	Err(e) => Some(format!("{{\"result\":\"nok\",\
 			     			\"error_code\":\"{}\",\
 			     			\"error_msg\":\"{}\"\
