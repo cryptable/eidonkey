@@ -32,83 +32,95 @@ fn version() -> String {
     "{\"result\":\"ok\",\"version\":\"0.1.0\"}".to_string()
 }
 
-fn identity() -> String {
-	let ref reader = EIdDonkeyCard::list_readers().unwrap()[0];
-	let eid_card = EIdDonkeyCard::new(reader).unwrap();
-	let identity = eid_card.read_identity().unwrap();
+fn identity(eid_card: EIdDonkeyCard) -> String {
 
-	format!("{{\"result\":\"ok\",\
-				\"identity\":{{\"card_number\":\"{}\",\
-			 		\"chip_number\":\"{}\",\
-		 			\"validity_begin\":\"{}\",\
-			 		\"validity_end\":\"{}\",\
-			 		\"delivery_municipality\":\"{}\",\
-		 			\"national_number\":\"{}\",\
-		 			\"name\":\"{}\",\
-			 		\"second_first_name\":\"{}\",\
-			 		\"third_first_name\":\"{}\",\
-		 			\"nationality\":\"{}\",\
-		 			\"birth_location\":\"{}\",\
-			 		\"birth_date\":\"{}\",\
-			 		\"sex\":\"{}\",\
-		 			\"noble_condition\":\"{}\",\
-		 			\"document_type\":\"{}\",\
-			 		\"special_status\":\"{}\",
-			 		\"hash_photo\":\"{}\"\
-			 	}},
-				\"identity_raw\":\"{}\",
-				\"signature\":\"{}\"		 	
-		 	}}", 
-	 							identity.card_number,
-	 							base64::encode(&identity.chip_number), 
-	 							identity.validity_begin, 
-	 							identity.validity_end, 
-	 							identity.delivery_municipality, 
-	 							identity.national_number, 
-	 							identity.name,
-	 							identity.second_first_name.unwrap_or("null".to_string()),
-	 							identity.third_first_name, 
-	 							identity.nationality, 
-	 							identity.birth_location, 
-	 							identity.birth_date, 
-	 							identity.sex, 
-	 							identity.noble_condition.unwrap_or("null".to_string()),
-	 							identity.document_type,
-	 							identity.special_status.unwrap_or("null".to_string()),
-	 							base64::encode(&identity.hash_photo),
-	 							base64::encode(&identity.identity),
-	 							base64::encode(&identity.signature)
-	 							)
+	let identity_res = eid_card.read_identity();
+	match identity_res {
+		Ok(identity) => format!("{{\"result\":\"ok\",\
+									\"identity\":{{\"card_number\":\"{}\",\
+								 		\"chip_number\":\"{}\",\
+							 			\"validity_begin\":\"{}\",\
+								 		\"validity_end\":\"{}\",\
+								 		\"delivery_municipality\":\"{}\",\
+							 			\"national_number\":\"{}\",\
+							 			\"name\":\"{}\",\
+								 		\"second_first_name\":\"{}\",\
+								 		\"third_first_name\":\"{}\",\
+							 			\"nationality\":\"{}\",\
+							 			\"birth_location\":\"{}\",\
+								 		\"birth_date\":\"{}\",\
+								 		\"sex\":\"{}\",\
+							 			\"noble_condition\":\"{}\",\
+							 			\"document_type\":\"{}\",\
+								 		\"special_status\":\"{}\",
+								 		\"hash_photo\":\"{}\"\
+								 	}},
+									\"identity_raw\":\"{}\",
+									\"signature\":\"{}\"		 	
+							 	}}", 
+		 							identity.card_number,
+		 							base64::encode(&identity.chip_number), 
+		 							identity.validity_begin, 
+		 							identity.validity_end, 
+		 							identity.delivery_municipality, 
+		 							identity.national_number, 
+		 							identity.name,
+		 							identity.second_first_name.unwrap_or("null".to_string()),
+		 							identity.third_first_name, 
+		 							identity.nationality, 
+		 							identity.birth_location, 
+		 							identity.birth_date, 
+		 							identity.sex, 
+		 							identity.noble_condition.unwrap_or("null".to_string()),
+		 							identity.document_type,
+		 							identity.special_status.unwrap_or("null".to_string()),
+		 							base64::encode(&identity.hash_photo),
+		 							base64::encode(&identity.identity),
+		 							base64::encode(&identity.signature)
+		 							),
+		Err(e) => format!("{{\"result\":\"nok\",\
+			     			\"error_code\":\"{}\",\
+			     			\"error_msg\":\"{}\"\
+			     			}}", e, EIdDonkeyCard::get_error_message(e))
+	}
 }
 
-fn address() -> String {
-	let ref reader = EIdDonkeyCard::list_readers().unwrap()[0];
-	let eid_card = EIdDonkeyCard::new(reader).unwrap();
-	let address = eid_card.read_address().unwrap();
+fn address(eid_card: EIdDonkeyCard) -> String {
+	let address_res = eid_card.read_address();
 
-	format!("{{\"result\":\"ok\",\
+	match address_res {
+		Ok(address) => format!("{{\"result\":\"ok\",\
 				\"address\":{{\
 					\"street\":\"{}\",\
-					\"postal_code\":\"{}\",\
+					\"zip_code\":\"{}\",\
 					\"city\":\"{}\"\
 				}},\
 				\"address_raw\":\"{}\",\
 				\"signature\":\"{}\"\
 			}}", 
 			address.street,
-			address.postal_code,
+			address.zip_code,
 			address.city,
 			base64::encode(&address.address),
-			base64::encode(&address.signature))
+			base64::encode(&address.signature)),
+		Err(e) => format!("{{\"result\":\"nok\",\
+			     			\"error_code\":\"{}\",\
+			     			\"error_msg\":\"{}\"\
+			     			}}", e, EIdDonkeyCard::get_error_message(e))
+	}	
 }
 
-fn photo() -> String {
-	let ref reader = EIdDonkeyCard::list_readers().unwrap()[0];
-	let eid_card = EIdDonkeyCard::new(reader).unwrap();
-	let photo = eid_card.read_photo().unwrap();
+fn photo(eid_card: EIdDonkeyCard) -> String {
+	let photo_res = eid_card.read_photo();
 
-	format!("{{\"result\":\"ok\",\"photo\":\"{}\"}}", 
-	 							base64::encode(&photo.photo))
+	match photo_res {
+		Ok(photo) => format!("{{\"result\":\"ok\",\"photo\":\"{}\"}}", 
+	 							base64::encode(&photo.photo)),
+		Err(e) => format!("{{\"result\":\"nok\",\
+			     			\"error_code\":\"{}\",\
+			     			\"error_msg\":\"{}\"\
+			     			}}", e,  EIdDonkeyCard::get_error_message(e))
+	}	
 }
 
 
@@ -145,12 +157,51 @@ fn post_handler(req: Request, mut res: Response) {
 
 }
 
+fn connect_card() -> Result<EIdDonkeyCard, u32> {
+	let reader = EIdDonkeyCard::list_readers();
+	match reader {
+		Ok(readers) => {
+			let eid_card_res = EIdDonkeyCard::new(&readers[0]);
+			match eid_card_res {
+			    Ok(eid_card) => Ok(eid_card),
+			    Err(e) => Err(e)
+			}
+		},
+		Err(e) => Err(e)
+	}
+}
+
 fn call_route_get_handler(uri: &str) -> Option<Vec<u8>> {
 	match uri {
 	    "/version" => Some(version().into_bytes()),
-	    "/identity" => Some(identity().into_bytes()),
-	    "/address" => Some(address().into_bytes()),
-	    "/photo" => Some(photo().into_bytes()),
+	    "/identity" => { 
+	    	match connect_card() {
+		    	Ok(card) => Some(identity(card).into_bytes()),
+		    	Err(e) => Some(format!("{{\"result\":\"nok\",\
+			     			\"error_code\":\"{}\",\
+			     			\"error_msg\":\"{}\"\
+			     			}}", e,  EIdDonkeyCard::get_error_message(e)).into_bytes())
+	    	}
+	    },
+	    "/address" => {
+	    	match connect_card() {
+	    		Ok(card) => Some(address(card).into_bytes()),
+		    	Err(e) => Some(format!("{{\"result\":\"nok\",\
+			     			\"error_code\":\"{}\",\
+			     			\"error_msg\":\"{}\"\
+			     			}}", e, EIdDonkeyCard::get_error_message(e)).into_bytes())
+	    	}
+	    },
+	    "/photo" => {
+	    	match connect_card() {
+	    		Ok(card) => Some(photo(card).into_bytes()),
+		    	Err(e) => Some(format!("{{\"result\":\"nok\",\
+			     			\"error_code\":\"{}\",\
+			     			\"error_msg\":\"{}\"\
+			     			}}", e, EIdDonkeyCard::get_error_message(e)).into_bytes())
+	    	}
+	    	
+	    },
 	    _ => None,
 	}
 }
