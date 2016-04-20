@@ -48,7 +48,7 @@ pub struct EIdIdentity {
 
 pub struct EIdAddress {
 	pub street: String,
-	pub postal_code: String,
+	pub zip_code: String,
 	pub city: String,
 	pub address: Vec<u8>,
 	pub signature: Vec<u8>,
@@ -56,6 +56,55 @@ pub struct EIdAddress {
 
 pub struct EIdPhoto {
 	pub photo: Vec<u8>,
+}
+
+fn convert_validity_date(date: &String) -> String {
+	let v: Vec<&str> = date.split(".").collect();
+	format!("{}-{}-{}", v[2], v[1], v[0])
+}
+
+fn convert_birth_date(date: &String) -> String {
+	let v: Vec<&str> = date.split(|c| c == ' ' || c == '.').collect();
+	let month = v[1];
+	let mut MM: &str;
+	if month == "JAN" {
+		MM = "01";
+	}
+	else if month == "FEB" || month == "FEV" {
+		MM = "02";
+	}
+	else if month == "MARS" || month == "MÄR" || month == "MAAR" {
+		MM = "03";
+	}
+	else if month == "AVR" || month == "APR" {
+		MM = "04";
+	}
+	else if month == "MAI" || month == "MEI" {
+		MM = "05";
+	}
+	else if month == "JUN" || month == "JUIN" {
+		MM = "06";
+	}
+	else if month == "JUL" || month == "JUIL" {
+		MM = "07";
+	}
+	else if month == "AOUT" || month == "AUG" {
+		MM = "08";
+	}
+	else if month == "SEP" || month == "SEPT" {
+		MM = "09";
+	}
+	else if month == "OCT" || month == "OKT" {
+		MM = "10";
+	}
+	else if month == "NOV" {
+		MM = "11";
+	}
+	else {
+		MM = "12";
+	}
+
+	format!("{}-{}-{}", v[2], MM, v[0])
 }
 
 fn get_data_len(data: & Vec<u8>, offset: usize) -> (u32, u32) {
@@ -85,12 +134,32 @@ fn copy_vector_to_string(data: & Vec<u8>, offset: usize, len: u32) -> String {
 }
 
 impl EIdDonkeyCard {
+
 	pub fn list_readers() -> Result< Vec<String> , u32> {
 		let connect = pcsc::DonkeyCard::new();
 		let result = connect.list_readers();
 		match result {
 			Ok(readers) => Ok(readers),
 			Err(e) => Err(e)
+		}
+	}
+
+	pub fn get_error_message(e: u32) -> String {
+		match e {
+			pcsc::SCARD_W_REMOVED_CARD => "eId card was removed, please re-insert your eId card".to_string(),
+			pcsc::SCARD_W_UNSUPPORTED_CARD => "Unsupported card, insert your eId card".to_string(),
+			pcsc::SCARD_E_NO_READERS_AVAILABLE => "No readers unavailable, attach your reader".to_string(),
+			pcsc::SCARD_E_SERVICE_STOPPED => "PCSC service stopped, restart your service or computer".to_string(),
+			pcsc::SCARD_E_NO_SERVICE => "No PCSC service detected, install the pcsc driver of the reader".to_string(),
+			pcsc::SCARD_E_CARD_UNSUPPORTED => "Smart card unsupported, insert your eId card".to_string(),
+			pcsc::SCARD_E_READER_UNSUPPORTED => "Reader unsupported, attach a valid reader".to_string(),
+			pcsc::SCARD_E_READER_UNAVAILABLE => "Reader unavailable, (re)attach your reader".to_string(),
+			pcsc::SCARD_E_UNKNOWN_CARD => "Unknown eId, insert the correct eId card".to_string(),
+			pcsc::SCARD_E_NO_SMARTCARD => "No eId, insert your eId card".to_string(),
+			pcsc::SCARD_E_UNKNOWN_READER => "Unkown PCSC reader, attached a valid reader".to_string(),
+			pcsc::SCARD_F_INTERNAL_ERROR => "Internal Error".to_string(),
+			EIDONKEY_READ_ERROR => "Read error from smartcard".to_string(),
+			_ => "Unknown error".to_string()
 		}
 	}
 
@@ -178,14 +247,14 @@ impl EIdDonkeyCard {
 						len = get_data_len(&id, pos);
 						pos = pos + len.1 as usize;
 						println!("pos : {}", pos);
-						let s_validity_begin = copy_vector_to_string(&id, pos, len.0);
+						let s_validity_begin = convert_validity_date(&copy_vector_to_string(&id, pos, len.0));
 						pos = pos + len.0 as usize;
 						println!("validity_end tag : {}", id[pos]);
 						pos = pos + 1;
 						len = get_data_len(&id, pos);
 						pos = pos + len.1 as usize;
 						println!("pos : {}", pos);
-						let s_validity_end = copy_vector_to_string(&id, pos, len.0);
+						let s_validity_end = convert_validity_date(&copy_vector_to_string(&id, pos, len.0));
 						pos = pos + len.0 as usize;
 						println!("delivery_municipality tag : {}", id[pos]);
 						pos = pos + 1;
@@ -247,7 +316,7 @@ impl EIdDonkeyCard {
 						len = get_data_len(&id, pos);
 						pos = pos + len.1 as usize;
 						println!("pos : {}", pos);
-						let s_birth_date = copy_vector_to_string(&id, pos, len.0);
+						let s_birth_date = convert_birth_date(&copy_vector_to_string(&id, pos, len.0));
 						pos = pos + len.0 as usize;
 						println!("sex tag : {}", id[pos]);
 						pos = pos + 1;
@@ -345,7 +414,7 @@ impl EIdDonkeyCard {
 						len = get_data_len(&addr, pos);
 						pos = pos + len.1 as usize;
 						println!("pos : {}", pos);
-						let s_postal_code = copy_vector_to_string(&addr, pos, len.0);
+						let s_zip_code = copy_vector_to_string(&addr, pos, len.0);
 						pos = pos + len.0 as usize;
 						println!("city tag : {}", addr[pos]);
 						pos = pos + 1;
@@ -355,7 +424,7 @@ impl EIdDonkeyCard {
 						let s_city = copy_vector_to_string(&addr, pos, len.0);
 						Ok(EIdAddress{
 							street: s_street,
-							postal_code: s_postal_code,
+							zip_code: s_zip_code,
 							city: s_city,
 							address: addr,
 							signature: address_sig			
@@ -383,7 +452,6 @@ impl EIdDonkeyCard {
 }
 
 #[test]
-#[ignore]
 fn test_read_identity() {
 	let ref reader = EIdDonkeyCard::list_readers().unwrap()[0];
 	let eid_card = EIdDonkeyCard::new(reader).unwrap();
@@ -452,9 +520,11 @@ fn test_read_address() {
 
 	match address_res {
 		Ok(addr) => {
-			println!("address: {}", addr.address);
+			println!("street: {}", addr.street);
+			println!("ZIP code: {}", addr.zip_code);
+			println!("city: {}", addr.city);
 			print!("binary address: ");
-			for c in addr.bin_address {
+			for c in addr.address {
 				print!("{:.2X}", c);
 			}			
 			print!("\n");
@@ -470,4 +540,54 @@ fn test_read_address() {
 			assert!(false);
 		},
 	}
+}
+
+#[test]
+fn test_convert_birth_date() {
+	let mut birt_date = convert_birth_date(&"01 JAN 2014".to_string());
+	assert_eq!(birt_date, "2014-01-01".to_string());
+	birt_date = convert_birth_date(&"01 FEV 2014".to_string());
+	assert_eq!(birt_date, "2014-02-01".to_string());
+	birt_date = convert_birth_date(&"01 MARS 2014".to_string());
+	assert_eq!(birt_date, "2014-03-01".to_string());
+	birt_date = convert_birth_date(&"01 AVR 2014".to_string());
+	assert_eq!(birt_date, "2014-04-01".to_string());
+	birt_date = convert_birth_date(&"01 MAI 2014".to_string());
+	assert_eq!(birt_date, "2014-05-01".to_string());
+	birt_date = convert_birth_date(&"01 JUIN 2014".to_string());
+	assert_eq!(birt_date, "2014-06-01".to_string());
+	birt_date = convert_birth_date(&"01 JUIL 2014".to_string());
+	assert_eq!(birt_date, "2014-07-01".to_string());
+	birt_date = convert_birth_date(&"01 AOUT 2014".to_string());
+	assert_eq!(birt_date, "2014-08-01".to_string());
+	birt_date = convert_birth_date(&"01 SEPT 2014".to_string());
+	assert_eq!(birt_date, "2014-09-01".to_string());
+	birt_date = convert_birth_date(&"01 OCT 2014".to_string());
+	assert_eq!(birt_date, "2014-10-01".to_string());
+	birt_date = convert_birth_date(&"01 NOV 2014".to_string());
+	assert_eq!(birt_date, "2014-11-01".to_string());
+	birt_date = convert_birth_date(&"01 DEC 2014".to_string());
+	assert_eq!(birt_date, "2014-12-01".to_string());
+	birt_date = convert_birth_date(&"01 FEB 2014".to_string());
+	assert_eq!(birt_date, "2014-02-01".to_string());
+	birt_date = convert_birth_date(&"01 MAAR 2014".to_string());
+	assert_eq!(birt_date, "2014-03-01".to_string());
+	birt_date = convert_birth_date(&"01 APR 2014".to_string());
+	assert_eq!(birt_date, "2014-04-01".to_string());
+	birt_date = convert_birth_date(&"01 MEI 2014".to_string());
+	assert_eq!(birt_date, "2014-05-01".to_string());
+	birt_date = convert_birth_date(&"01 JUN 2014".to_string());
+	assert_eq!(birt_date, "2014-06-01".to_string());
+	birt_date = convert_birth_date(&"01 JUL 2014".to_string());
+	assert_eq!(birt_date, "2014-07-01".to_string());
+	birt_date = convert_birth_date(&"01 AUG 2014".to_string());
+	assert_eq!(birt_date, "2014-08-01".to_string());
+	birt_date = convert_birth_date(&"01 SEP 2014".to_string());
+	assert_eq!(birt_date, "2014-09-01".to_string());
+	birt_date = convert_birth_date(&"01 OKT 2014".to_string());
+	assert_eq!(birt_date, "2014-10-01".to_string());
+	birt_date = convert_birth_date(&"01 MÄR 2014".to_string());
+	assert_eq!(birt_date, "2014-03-01".to_string());
+	birt_date = convert_birth_date(&"01 DEZ 2014".to_string());
+	assert_eq!(birt_date, "2014-12-01");
 }
