@@ -58,6 +58,13 @@ pub struct EIdPhoto {
 	pub photo: Vec<u8>,
 }
 
+pub struct EIdStatus {
+	pub reader_name: String,
+	pub protocol: String,
+	pub atr: Vec<u8>,
+}
+
+
 fn convert_validity_date(date: &String) -> String {
 	let v: Vec<&str> = date.split(".").collect();
 	format!("{}-{}-{}", v[2], v[1], v[0])
@@ -131,6 +138,17 @@ fn copy_vector(data: & Vec<u8>, offset: usize, len: u32) -> Vec<u8> {
 
 fn copy_vector_to_string(data: & Vec<u8>, offset: usize, len: u32) -> String {
 	String::from_utf8(copy_vector(data, offset, len)).unwrap()
+}
+
+fn get_protocol_string(prot: u32) -> String {
+	match prot {
+		pcsc::SCARD_PROTOCOL_T0 => "Active protocol T=0".to_string(),
+		pcsc::SCARD_PROTOCOL_T1 => "Active protocol T=1".to_string(),
+		pcsc::SCARD_PROTOCOL_T15 => "Active protocol T=15".to_string(),
+		pcsc::SCARD_PROTOCOL_RAW => "Active protocol RAW".to_string(),
+		pcsc::SCARD_PROTOCOL_ANY => "Active protocol ANY(T=0 and T=1)".to_string(),
+		_ => "Unknown active protocol".to_string()
+	}
 }
 
 impl EIdDonkeyCard {
@@ -445,6 +463,19 @@ impl EIdDonkeyCard {
 					photo: img
 				})
 			},
+			Err(e) => Err(e),
+		}
+	}
+
+	pub fn get_status(&self) -> Result< EIdStatus, u32> {
+		let status_res = self.card_handle.status();
+
+		match status_res {
+			Ok(status) => Ok(EIdStatus {
+				reader_name: status.reader_name.clone(),
+				protocol: get_protocol_string(status.protocol),
+				atr: status.atr.clone()
+			}),
 			Err(e) => Err(e),
 		}
 	}

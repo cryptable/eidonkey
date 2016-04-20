@@ -90,22 +90,22 @@ pub const PARSING_READERS_ERROR: u32 	= 0x80110001;
 pub const PARSING_RESPONSE_ERROR: u32 	= 0x80110002; 
 
 // Shared mode
-const SCARD_SHARE_EXCLUSIVE: u32 		= 0x0001;
-const SCARD_SHARE_SHARED: u32 			= 0x0002;
-const SCARD_SHARE_DIRECT: u32			= 0x0003;
+pub const SCARD_SHARE_EXCLUSIVE: u32 		= 0x0001;
+pub const SCARD_SHARE_SHARED: u32 			= 0x0002;
+pub const SCARD_SHARE_DIRECT: u32			= 0x0003;
 
 // Protocols
-const SCARD_PROTOCOL_T0: u32			= 0x0001;
-const SCARD_PROTOCOL_T1: u32			= 0x0002;
-const SCARD_PROTOCOL_RAW: u32			= 0x0004;
-const SCARD_PROTOCOL_T15: u32			= 0x0008;
-const SCARD_PROTOCOL_ANY: u32			= (SCARD_PROTOCOL_T0 | SCARD_PROTOCOL_T1);
+pub const SCARD_PROTOCOL_T0: u32			= 0x0001;
+pub const SCARD_PROTOCOL_T1: u32			= 0x0002;
+pub const SCARD_PROTOCOL_RAW: u32			= 0x0004;
+pub const SCARD_PROTOCOL_T15: u32			= 0x0008;
+pub const SCARD_PROTOCOL_ANY: u32			= (SCARD_PROTOCOL_T0 | SCARD_PROTOCOL_T1);
 
 // Disposition
-const SCARD_LEAVE_CARD: u32				= 0x0000;
-const SCARD_RESET_CARD: u32				= 0x0001;
-const SCARD_UNPOWER_CARD: u32			= 0x0002;
-const SCARD_EJECT_CARD: u32				= 0x0003;
+pub const SCARD_LEAVE_CARD: u32				= 0x0000;
+pub const SCARD_RESET_CARD: u32				= 0x0001;
+pub const SCARD_UNPOWER_CARD: u32			= 0x0002;
+pub const SCARD_EJECT_CARD: u32				= 0x0003;
 
 pub const MAX_ATR_SIZE: u32					= 33; 
 pub const MAX_RECV_BUFFER: usize			= 2048;
@@ -251,7 +251,7 @@ impl DonkeyCardConnect {
 				&mut state, &mut prot,
 				ptr::null_mut(), &mut atr_size);
 			if ret == SCARD_S_SUCCESS {
-				reader_name = vec![0; reader_size];
+				reader_name = vec![0; (reader_size-1)];
 				atr_data = vec![0; atr_size];
 				ret = SCardStatus(self.card_handle, reader_name.as_mut_ptr(), &mut reader_size,
 					&mut state, &mut prot,
