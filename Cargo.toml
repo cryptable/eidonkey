@@ -13,3 +13,4 @@ data-encoding = "1.1.2"
 
 [dependencies.donkeycard]
 path = "donkeycard"
+features = [ "mock_pincode" ]

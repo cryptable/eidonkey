@@ -1,7 +1,9 @@
 extern crate libc;
-pub mod pcsc;
+pub mod card;
+pub mod pin;
 use std::io::prelude::*;
 use std::fs::File;
+use card::*;
 
 static IDENTITY_FILE_ID: &'static[u8]		= &[0x00, 0xA4, 0x08, 0x0C, 0x06, 0x3F, 0x00, 0xDF, 0x01, 0x40, 0x31];
 static IDENTITY_SIGN_FILE_ID: &'static[u8] 	= &[0x00, 0xA4, 0x08, 0x0C, 0x06, 0x3F, 0x00, 0xDF, 0x01, 0x40, 0x32];
@@ -18,10 +20,9 @@ const TAG_NOBLE_CONDITION: u8               = 14;
 const TAG_SPECIAL_STATUS: u8                = 16;
 pub const EIDONKEY_READ_ERROR: u32 = 0x80120001;
 
-
 pub struct EIdDonkeyCard {
-	connection: pcsc::DonkeyCard,
-	card_handle: pcsc::DonkeyCardConnect,
+	connection: DonkeyCard,
+	card_handle: DonkeyCardConnect,
 }
 
 pub struct EIdIdentity {
@@ -142,11 +143,11 @@ fn copy_vector_to_string(data: & Vec<u8>, offset: usize, len: u32) -> String {
 
 fn get_protocol_string(prot: u32) -> String {
 	match prot {
-		pcsc::SCARD_PROTOCOL_T0 => "Active protocol T=0".to_string(),
-		pcsc::SCARD_PROTOCOL_T1 => "Active protocol T=1".to_string(),
-		pcsc::SCARD_PROTOCOL_T15 => "Active protocol T=15".to_string(),
-		pcsc::SCARD_PROTOCOL_RAW => "Active protocol RAW".to_string(),
-		pcsc::SCARD_PROTOCOL_ANY => "Active protocol ANY(T=0 and T=1)".to_string(),
+		SCARD_PROTOCOL_T0 => "Active protocol T=0".to_string(),
+		SCARD_PROTOCOL_T1 => "Active protocol T=1".to_string(),
+		SCARD_PROTOCOL_T15 => "Active protocol T=15".to_string(),
+		SCARD_PROTOCOL_RAW => "Active protocol RAW".to_string(),
+		SCARD_PROTOCOL_ANY => "Active protocol ANY(T=0 and T=1)".to_string(),
 		_ => "Unknown active protocol".to_string()
 	}
 }
@@ -154,7 +155,7 @@ fn get_protocol_string(prot: u32) -> String {
 impl EIdDonkeyCard {
 
 	pub fn list_readers() -> Result< Vec<String> , u32> {
-		let connect = pcsc::DonkeyCard::new();
+		let connect = DonkeyCard::new();
 		let result = connect.list_readers();
 		match result {
 			Ok(readers) => Ok(readers),
@@ -164,25 +165,25 @@ impl EIdDonkeyCard {
 
 	pub fn get_error_message(e: u32) -> String {
 		match e {
-			pcsc::SCARD_W_REMOVED_CARD => "eId card was removed, please re-insert your eId card".to_string(),
-			pcsc::SCARD_W_UNSUPPORTED_CARD => "Unsupported card, insert your eId card".to_string(),
-			pcsc::SCARD_E_NO_READERS_AVAILABLE => "No readers unavailable, attach your reader".to_string(),
-			pcsc::SCARD_E_SERVICE_STOPPED => "PCSC service stopped, restart your service or computer".to_string(),
-			pcsc::SCARD_E_NO_SERVICE => "No PCSC service detected, install the pcsc driver of the reader".to_string(),
-			pcsc::SCARD_E_CARD_UNSUPPORTED => "Smart card unsupported, insert your eId card".to_string(),
-			pcsc::SCARD_E_READER_UNSUPPORTED => "Reader unsupported, attach a valid reader".to_string(),
-			pcsc::SCARD_E_READER_UNAVAILABLE => "Reader unavailable, (re)attach your reader".to_string(),
-			pcsc::SCARD_E_UNKNOWN_CARD => "Unknown eId, insert the correct eId card".to_string(),
-			pcsc::SCARD_E_NO_SMARTCARD => "No eId, insert your eId card".to_string(),
-			pcsc::SCARD_E_UNKNOWN_READER => "Unkown PCSC reader, attached a valid reader".to_string(),
-			pcsc::SCARD_F_INTERNAL_ERROR => "Internal Error".to_string(),
+			SCARD_W_REMOVED_CARD => "eId card was removed, please re-insert your eId card".to_string(),
+			SCARD_W_UNSUPPORTED_CARD => "Unsupported card, insert your eId card".to_string(),
+			SCARD_E_NO_READERS_AVAILABLE => "No readers unavailable, attach your reader".to_string(),
+			SCARD_E_SERVICE_STOPPED => "PCSC service stopped, restart your service or computer".to_string(),
+			SCARD_E_NO_SERVICE => "No PCSC service detected, install the pcsc driver of the reader".to_string(),
+			SCARD_E_CARD_UNSUPPORTED => "Smart card unsupported, insert your eId card".to_string(),
+			SCARD_E_READER_UNSUPPORTED => "Reader unsupported, attach a valid reader".to_string(),
+			SCARD_E_READER_UNAVAILABLE => "Reader unavailable, (re)attach your reader".to_string(),
+			SCARD_E_UNKNOWN_CARD => "Unknown eId, insert the correct eId card".to_string(),
+			SCARD_E_NO_SMARTCARD => "No eId, insert your eId card".to_string(),
+			SCARD_E_UNKNOWN_READER => "Unkown PCSC reader, attached a valid reader".to_string(),
+			SCARD_F_INTERNAL_ERROR => "Internal Error".to_string(),
 			EIDONKEY_READ_ERROR => "Read error from smartcard".to_string(),
 			_ => "Unknown error".to_string()
 		}
 	}
 
 	pub fn new(reader: & String) -> Result< EIdDonkeyCard, u32 > {
-		let connect = pcsc::DonkeyCard::new();
+		let connect = DonkeyCard::new();
 		let card_connect = connect.connect(reader);
 		match card_connect {
 			Ok(handle) => {
@@ -480,6 +481,15 @@ impl EIdDonkeyCard {
 		}
 	}
 
+	pub fn verify_pin_dialog(&self) {
+
+
+	}
+
+	pub fn verify_pin_pinpad(&self) {
+		
+
+	}
 }
 
 #[test]

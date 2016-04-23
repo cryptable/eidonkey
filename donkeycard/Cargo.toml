@@ -5,3 +5,6 @@ authors = ["david <david.tillemans@cryptable.org>"]
 
 [dependencies]
 libc = "0.2"
+
+[features]
+mock_pincode = []
