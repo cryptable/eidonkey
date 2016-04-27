@@ -3,6 +3,9 @@ pub mod card;
 pub mod pin;
 use std::io::prelude::*;
 use std::fs::File;
+use std::sync::{Once, ONCE_INIT, Mutex, Arc};
+use std::{mem};
+
 use card::*;
 
 static IDENTITY_FILE_ID: &'static[u8]		= &[0x00, 0xA4, 0x08, 0x0C, 0x06, 0x3F, 0x00, 0xDF, 0x01, 0x40, 0x31];
@@ -18,11 +21,11 @@ static RRN_CERT_FILE_ID: &'static[u8] 		= &[0x00, 0xA4, 0x08, 0x0C, 0x06, 0x3F, 
 const TAG_TWO_FIRST_FIRST_NAMES: u8         = 8;
 const TAG_NOBLE_CONDITION: u8               = 14;
 const TAG_SPECIAL_STATUS: u8                = 16;
-pub const EIDONKEY_READ_ERROR: u32 = 0x80120001;
+pub const EIDONKEY_READ_ERROR: u32 			= 0x80120001;
 
+#[derive(Clone)]
 pub struct EIdDonkeyCard {
-	connection: DonkeyCard,
-	card_handle: DonkeyCardConnect,
+	card_handle: Arc<Mutex<DonkeyCardConnect>>,
 }
 
 pub struct EIdIdentity {
@@ -137,6 +140,16 @@ fn copy_vector(data: & Vec<u8>, offset: usize, len: u32) -> Vec<u8> {
 	result
 }
 
+fn copy_vector_to_gender(data: & Vec<u8>, offset: usize, len: u32) -> String {
+	match data[0] as char {
+		'M' => "M".to_string(),
+		'F' => "F".to_string(),
+		'V' => "F".to_string(),
+		'W' => "F".to_string(),
+		_ => "U".to_string()
+	}
+}
+
 fn copy_vector_to_string(data: & Vec<u8>, offset: usize, len: u32) -> String {
 	String::from_utf8(copy_vector(data, offset, len)).unwrap()
 }
@@ -182,39 +195,48 @@ impl EIdDonkeyCard {
 		}
 	}
 
-	pub fn new(reader: & String) -> Result< EIdDonkeyCard, u32 > {
-		let connect = DonkeyCard::new();
-		let card_connect = connect.connect(reader);
-		match card_connect {
-			Ok(handle) => {
-				Ok(EIdDonkeyCard {
-					connection: connect,
-					card_handle: handle
-				})
-			},
-			Err(e) => Err(e),
+	pub fn new(reader : & String) -> EIdDonkeyCard {
 
+	    // Initialize it to a null value
+	    static mut EIDONKEYCARD_SINGLETON: *const EIdDonkeyCard = 0 as *const EIdDonkeyCard;
+	    static ONCE: Once = ONCE_INIT;
+		unsafe {
+			ONCE.call_once(|| {
+				let handle = DonkeyCardConnect::new(reader).unwrap();
+				println!("----- Run once {} : {}", handle.context, handle.card_handle);
+				let eidonkeycard = EIdDonkeyCard {
+						card_handle: Arc::new(Mutex::new(handle)),
+					};
+				// create copy on the heap as a singleton
+				EIDONKEYCARD_SINGLETON = mem::transmute(Box::new(eidonkeycard));
+			});
+			(*EIDONKEYCARD_SINGLETON).clone()
 		}
 	}
 
 	fn read_file(&self, file_loc: &[u8]) -> Result< Vec<u8>, u32> {
-		let result = self.card_handle.transmit(&file_loc.to_vec());
+
+		let card_handle = self.card_handle.lock().unwrap();
+		let result = card_handle.transmit(&file_loc.to_vec());
 		match result {
 			Ok(resp) => {
 				let read_length: usize = 0xFD;
 				let mut data: Vec<u8> = Vec::new();
 				let mut read_command: Vec<u8> = vec![0x00, 0xB0, 0x00, 0x00, 0xFD ];
 				loop {
-					let mut result = self.card_handle.transmit(&read_command);
+					let mut result = card_handle.transmit(&read_command);
 
 					match result {
 						Ok(resp) => {
-							if (resp.sw[0] != 0x90) && (resp.sw[1] != 0x00) {
-								print!("{:.*X}{:.*X}\n", 2, resp.sw[0], 2, resp.sw[1]);
-								return Err(EIDONKEY_READ_ERROR)
+							if resp.sw[0] == 0x6C {
+								// ZETES reader wants exact length
+								// Invalid length, set new length and try again
+								read_command[4] = resp.sw[1];
+								continue
 							}
-							if (resp.sw[0] == 0x6B) && (resp.sw[0] == 0x6B) {
-								return Ok(data);
+							if (resp.sw[0] != 0x90) && (resp.sw[1] != 0x00) {
+								print!("Error code: {:.*X}{:.*X}\n", 2, resp.sw[0], 2, resp.sw[1]);
+								return Err(EIDONKEY_READ_ERROR)
 							}
 							if resp.data.len() == 0 {
 								return Ok(data);
@@ -226,6 +248,7 @@ impl EIdDonkeyCard {
 							else {
 								data.extend_from_slice(&(resp.data));
 							}
+							// Update offset
 							read_command[2] = ((data.len() >> 8) & 0xFF) as u8;
 							read_command[3] = data.len() as u8;
 						},
@@ -342,7 +365,7 @@ impl EIdDonkeyCard {
 						len = get_data_len(&id, pos);
 						pos = pos + len.1 as usize;
 						println!("pos : {}", pos);
-						let s_sex = copy_vector_to_string(&id, pos, len.0);
+						let s_sex = copy_vector_to_gender(&id, pos, len.0);
 						pos = pos + len.0 as usize;
 						let mut s_noble_condition : Option<String>;
 						if id[pos] == TAG_NOBLE_CONDITION {
@@ -427,6 +450,7 @@ impl EIdDonkeyCard {
 						pos = pos + len.1 as usize;
 						println!("pos : {}", pos);
 						let s_street = copy_vector_to_string(&addr, pos, len.0);
+						println!("street : {}", s_street);
 						pos = pos + len.0 as usize;
 						println!("postal code tag : {}", addr[pos]);
 						pos = pos + 1;
@@ -469,7 +493,8 @@ impl EIdDonkeyCard {
 	}
 
 	pub fn get_status(&self) -> Result< EIdStatus, u32> {
-		let status_res = self.card_handle.status();
+		let card_handle = self.card_handle.lock().unwrap();
+		let status_res = card_handle.status();
 
 		match status_res {
 			Ok(status) => Ok(EIdStatus {
@@ -481,8 +506,37 @@ impl EIdDonkeyCard {
 		}
 	}
 
-	pub fn verify_pin_dialog(&self) {
+/*
+	private ResponseAPDU verifyPin(int retriesLeft) throws CardException, UserCancelledException {
+		char[] pin = this.dialogs.getPin(retriesLeft);
+		byte[] verifyData = new byte[] { (byte) (0x20 | pin.length), (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF,
+				(byte) 0xFF, (byte) 0xFF, (byte) 0xFF };
+		for (int idx = 0; idx < pin.length; idx += 2) {
+			char digit1 = pin[idx];
+			char digit2;
+			if (idx + 1 < pin.length) {
+				digit2 = pin[idx + 1];
+			} else {
+				digit2 = '0' + 0xf;
+			}
+			byte value = (byte) (byte) ((digit1 - '0' << 4) + (digit2 - '0'));
+			verifyData[idx / 2 + 1] = value;
+		}
+		Arrays.fill(pin, (char) 0); // minimize exposure
 
+		this.view.addDetailMessage("verifying PIN...");
+		CommandAPDU verifyApdu = new CommandAPDU(0x00, 0x20, 0x00, 0x01, verifyData);
+		try {
+			ResponseAPDU responseApdu = transmit(verifyApdu);
+			return responseApdu;
+		} finally {
+			Arrays.fill(verifyData, (byte) 0); // minimize exposure
+		}
+	}
+*/
+/*
+	pub fn verify_pin_dialog(&self) {
+		let pincode = get_pincode();
 
 	}
 
@@ -490,12 +544,13 @@ impl EIdDonkeyCard {
 		
 
 	}
+*/
 }
 
 #[test]
 fn test_read_identity() {
 	let ref reader = EIdDonkeyCard::list_readers().unwrap()[0];
-	let eid_card = EIdDonkeyCard::new(reader).unwrap();
+	let eid_card = EIdDonkeyCard::new(reader);
 	let identity_res = eid_card.read_identity();
 
 	match identity_res {
@@ -556,7 +611,7 @@ fn test_read_identity() {
 #[test]
 fn test_read_address() {
 	let ref reader = EIdDonkeyCard::list_readers().unwrap()[0];
-	let eid_card = EIdDonkeyCard::new(reader).unwrap();
+	let eid_card = EIdDonkeyCard::new(reader);
 	let address_res = eid_card.read_address();
 
 	match address_res {
@@ -582,6 +637,64 @@ fn test_read_address() {
 		},
 	}
 }
+
+#[test]
+fn test_read_address_unsyncronised_access() {
+	let ref reader = EIdDonkeyCard::list_readers().unwrap()[0];
+	let mut eid_card = EIdDonkeyCard::new(reader);
+	let eid_card2 = EIdDonkeyCard::new(reader);
+
+	let address_res = eid_card.read_address();
+
+	match address_res {
+		Ok(addr) => {
+			println!("street: {}", addr.street);
+			println!("ZIP code: {}", addr.zip_code);
+			println!("city: {}", addr.city);
+			print!("binary address: ");
+			for c in addr.address {
+				print!("{:.2X}", c);
+			}			
+			print!("\n");
+			print!("signature: ");
+			for c in addr.signature {
+				print!("{:.2X}", c);
+			}			
+			print!("\n");
+			assert!(true);
+		},
+		Err(e) => {
+			println!("Error {:X}", e);
+			assert!(false);
+		},
+	}
+
+	let address_res2 = eid_card2.read_address();
+	match address_res2 {
+		Ok(addr) => {
+			println!("street2: {}", addr.street);
+			println!("ZIP code2: {}", addr.zip_code);
+			println!("city2: {}", addr.city);
+			print!("binary address2: ");
+			for c in addr.address {
+				print!("{:.2X}", c);
+			}			
+			print!("\n");
+			print!("signature2: ");
+			for c in addr.signature {
+				print!("{:.2X}", c);
+			}			
+			print!("\n");
+			assert!(true);
+		},
+		Err(e) => {
+			println!("Error {:X}", e);
+			assert!(false);
+		},
+	}
+
+}
+
 
 #[test]
 fn test_convert_birth_date() {
@@ -632,3 +745,22 @@ fn test_convert_birth_date() {
 	birt_date = convert_birth_date(&"01 DEZ 2014".to_string());
 	assert_eq!(birt_date, "2014-12-01");
 }
+
+
+#[test]
+fn test_convert_gender() {
+	let v_femme: Vec<u8> = vec![ 'F' as u8 ];
+	let v_women: Vec<u8> = vec![ 'W' as u8 ];
+	let v_vrouw: Vec<u8> = vec![ 'V' as u8 ];
+	let v_man: Vec<u8> = vec![ 'M' as u8 ];
+
+	let mut gender = copy_vector_to_gender(&v_femme, 0, 1);
+	assert_eq!(gender, "F".to_string());
+	let mut gender = copy_vector_to_gender(&v_women, 0, 1);
+	assert_eq!(gender, "F".to_string());
+	let mut gender = copy_vector_to_gender(&v_vrouw, 0, 1);
+	assert_eq!(gender, "F".to_string());
+	let mut gender = copy_vector_to_gender(&v_man, 0, 1);
+	assert_eq!(gender, "M".to_string());
+}
+

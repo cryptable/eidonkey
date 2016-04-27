@@ -150,11 +150,14 @@ extern {
 	fn SCardIsValidContext(context: u32) -> u32;
 }
 
+#[derive(Clone)]
 pub struct DonkeyCard {
 	pub context: u32,
 }
 
+#[derive(Clone)]
 pub struct DonkeyCardConnect {
+	pub context: u32,
 	pub card_handle: u32,
 	pub active_protocol: u32,
 }
@@ -176,6 +179,7 @@ impl DonkeyCard {
     	unsafe {
     		let mut x: u32 = 0;
     		let ret = SCardEstablishContext(0x0000, ptr::null(), ptr::null(), &mut x);
+    		println!("Establish context {}: {:X}", x, ret);
     		DonkeyCard {
     			context: x,
     		}
@@ -205,39 +209,44 @@ impl DonkeyCard {
 			}
 		}
    	}
+}
 
-   	pub fn connect(&self, name: & String) -> Result< DonkeyCardConnect, u32> {
+impl Drop for DonkeyCard {
+	fn drop(&mut self) {
+		unsafe {
+			let ret = SCardReleaseContext(self.context);
+	        println!("Dropping Context ![{}:{}]", self.context, ret);
+	    }
+    }
+}
+
+impl DonkeyCardConnect {
+
+   	pub fn new(name: & String) -> Result< DonkeyCardConnect, u32> {
    		unsafe {
+    		let mut context: u32 = 0;
    			let mut handle: u32 = 0;
    			let mut protocol: u32 = 0;
-   			let mut ret = SCardConnect(self.context, name.as_bytes().as_ptr(), SCARD_SHARE_SHARED, SCARD_PROTOCOL_ANY, 
+   			// TODO: Use SCARD_SHARE_SHARED -> SCARD_SHARE_EXCLUSIVE
+   			// Don't share the card with different applications ...
+    		let ret1 = SCardEstablishContext(0x0000, ptr::null(), ptr::null(), &mut context);
+   			let ret2 = SCardConnect(context, name.as_bytes().as_ptr(), SCARD_SHARE_SHARED, SCARD_PROTOCOL_ANY, 
    				&mut handle, &mut protocol);
-   			if ret == SCARD_S_SUCCESS {
-				println!("context: {:?}", self.context);
+   			if ret2 == SCARD_S_SUCCESS {
+				println!("context: {:?}", context);
 				println!("handle: {:?}", handle);
 	   			let card_connect = DonkeyCardConnect {
+	   				context: context,
 	   				card_handle: handle,
 	   				active_protocol: protocol
 	   			};
    				Ok(card_connect)
    			}
    			else {
-   				Err(ret)
+   				Err(ret2)
    			}
    		}
    	}
-}
-
-impl Drop for DonkeyCard {
-    fn drop(&mut self) {
-    	unsafe {
-        	let ret = SCardReleaseContext(self.context);
-			println!("dropping return SRC {:?}", ret);
-    	}
-    }
-}
-
-impl DonkeyCardConnect {
 
 	pub fn status(&self) -> Result< DonkeyCardStatus, u32 > {
 		unsafe {
@@ -303,11 +312,13 @@ impl DonkeyCardConnect {
 }
 
 impl Drop for DonkeyCardConnect {
-    fn drop(&mut self) {
-    	unsafe {
-        	let ret = SCardDisconnect(self.card_handle, SCARD_LEAVE_CARD);
-			println!("Disconnect card {:?}", ret);
-    	}
+	fn drop(&mut self) {
+		unsafe {
+			let ret1 = SCardDisconnect(self.card_handle, SCARD_LEAVE_CARD);
+	        println!("Disconnect ![{}:{}]", self.context, ret1);
+			let ret2 = SCardReleaseContext(self.context);
+	        println!("Dropping Context ![{}:{}]", self.context, ret2);
+	    }
     }
 }
 
@@ -349,7 +360,7 @@ fn test_list_reader() {
 fn test_connect_card(){
 	let donkeycard = DonkeyCard::new();
 	let ref name = donkeycard.list_readers().unwrap()[0];
-	let card = donkeycard.connect(name);	
+	let card = DonkeyCardConnect::new(name);	
 	match card {
 		Ok(donkeysc) => {
 			println!("donkeysc.card_handle {:?}", donkeysc.card_handle);
@@ -367,7 +378,7 @@ fn test_connect_card(){
 fn test_status_card(){
 	let donkeycard = DonkeyCard::new();
 	let ref name = donkeycard.list_readers().unwrap()[0];
-	let card = donkeycard.connect(name).unwrap();
+	let card = DonkeyCardConnect::new(name).unwrap();	
 	let command: Vec<u8> = vec![0x00, 0xA4, 0x08, 0x0C, 0x06, 0x3F, 0x00, 0xDF, 0x01, 0x40, 0x33];
 	let response = card.status();
 	match response {
@@ -389,16 +400,18 @@ fn test_status_card(){
 	}
 }
 
+
 // select identity file { 0x3F, 0x00, (byte) 0xDF, 0x01, 0x40, 0x31 }
 // CLA   INS   P1    P2    len
 // 0x00, 0xA4, 0x08, 0x0C, 0x06, 0x3F, 0x00, 0xDF, 0x01, 0x40, 0x31 
 // read binary file
 // 0x00, 0xB0, 0x00, 0x00, 0x00 };
+
 #[test]
 fn test_transmit_card(){
 	let donkeycard = DonkeyCard::new();
 	let ref name = donkeycard.list_readers().unwrap()[0];
-	let card = donkeycard.connect(name).unwrap();
+	let card = DonkeyCardConnect::new(name).unwrap();	
 	let command: Vec<u8> = vec![0x00, 0xA4, 0x08, 0x0C, 0x06, 0x3F, 0x00, 0xDF, 0x01, 0x40, 0x33];
 	let response = card.transmit(&command);
 	match response {
@@ -431,7 +444,7 @@ fn test_transmit_card(){
 fn test_transmit_readdata_card() {
 	let donkeycard = DonkeyCard::new();
 	let ref name = donkeycard.list_readers().unwrap()[0];
-	let card = donkeycard.connect(name).unwrap();
+	let card = DonkeyCardConnect::new(name).unwrap();	
 	let command_select: Vec<u8> = vec![0x00, 0xA4, 0x08, 0x0C, 0x06, 0x3F, 0x00, 0xDF, 0x01, 0x40, 0x31];
 	let response_select = card.transmit(&command_select);
 	match response_select {
