@@ -502,3 +502,37 @@ fn test_transmit_readdata_card() {
 		},
 	}
 }
+
+#[test]
+fn test_reset_testeid_card(){
+	let donkeycard = DonkeyCard::new();
+	let ref name = donkeycard.list_readers().unwrap()[0];
+	let card = DonkeyCardConnect::new(name).unwrap();
+//	let command: Vec<u8> = vec![0x00, 0x20, 0x00, 0x84, 0x08, 0x2C, 0x22, 0x22, 0x22, 0x11, 0x11, 0x11, 0xFF];
+	let command: Vec<u8> = vec![0x00, 0x20, 0x00, 0x84, 0x08, 0x2C, 0x11, 0x11, 0x11, 0x22, 0x22, 0x22, 0xFF];
+	let response = card.transmit(&command);
+	match response {
+	    Ok(resp) => {
+        	print!("sw: ");
+ 			for chr in resp.sw.iter() {
+        		print!("{:X}", chr);
+    		}
+        	print!("\n");
+        	print!("data: ");
+        	if resp.data.len() == 0 {
+        		print!("No data");
+        	}
+        	else {
+	 			for chr in resp.data.iter() {
+	        		print!("{:X}", chr);
+	    		}        		
+        	}
+        	print!("\n");
+			assert!(true);			
+		}
+	    Err(code) =>  {
+			println!("Error code {:?}", code);	
+			assert!(false);				
+		},
+	}
+}

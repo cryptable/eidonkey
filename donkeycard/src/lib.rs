@@ -7,6 +7,7 @@ use std::sync::{Once, ONCE_INIT, Mutex, Arc};
 use std::{mem};
 
 use card::*;
+use pin::*;
 
 static IDENTITY_FILE_ID: &'static[u8]		= &[0x00, 0xA4, 0x08, 0x0C, 0x06, 0x3F, 0x00, 0xDF, 0x01, 0x40, 0x31];
 static IDENTITY_SIGN_FILE_ID: &'static[u8] 	= &[0x00, 0xA4, 0x08, 0x0C, 0x06, 0x3F, 0x00, 0xDF, 0x01, 0x40, 0x32];
@@ -534,12 +535,13 @@ impl EIdDonkeyCard {
 		}
 	}
 */
-/*
+
 	pub fn verify_pin_dialog(&self) {
 		let pincode = get_pincode();
 
 	}
 
+/*
 	pub fn verify_pin_pinpad(&self) {
 		
 
