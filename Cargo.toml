@@ -4,13 +4,14 @@ version = "0.1.0"
 authors = ["david <david.tillemans@cryptable.org>"]
 
 [dependencies]
-hyper = "0.8"
+hyper = "0.9"
 mime = "0.2"
 getopts = "0.2"
 openssl = "0.7"
 serde_json = "0.7"
 data-encoding = "1.1.2"
+libc = "0.2"
 
-[dependencies.donkeycard]
-path = "donkeycard"
-features = [ "mock_pincode" ]
+[features]
+default = [ "mock_pincode" ]
+mock_pincode = []

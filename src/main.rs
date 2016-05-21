@@ -1,8 +1,8 @@
 extern crate hyper;
 extern crate openssl;
 extern crate getopts;
-extern crate donkeycard;
 extern crate data_encoding;
+extern crate eidonkey;
 
 use std::io::Write;
 use std::env;
@@ -14,15 +14,15 @@ use hyper::net::Openssl;
 use hyper::uri::RequestUri;
 use hyper::status::StatusCode;
 
-use openssl::crypto::hash::Type;
 use openssl::x509::X509Generator;
 use openssl::x509::extension::{Extension, KeyUsageOption, ExtKeyUsageOption};
+use openssl::crypto::hash::Type;
 
 use getopts::Options;
 
-use donkeycard::EIdDonkeyCard;
+use data_encoding::{base64, hex};
 
-use data_encoding::base64;
+use eidonkey::EIdDonkeyCard;
 
 fn sign() -> String {
     "{\"result\":\"nok\",\"reason\":\"not_implemented\"}".to_string()
@@ -115,7 +115,7 @@ fn photo(eid_card: EIdDonkeyCard) -> String {
 
 	match photo_res {
 		Ok(photo) => format!("{{\"result\":\"ok\",\"photo\":\"{}\"}}", 
-	 							base64::encode(&photo.photo)),
+	 							base64::encode(&photo)),
 		Err(e) => format!("{{\"result\":\"nok\",\
 			     			\"error_code\":\"{}\",\
 			     			\"error_msg\":\"{}\"\
@@ -136,6 +136,125 @@ fn status(eid_card: EIdDonkeyCard) -> String {
 	 							status.reader_name,
 	 							status.protocol,
 	 							base64::encode(&status.atr)),
+		Err(e) => format!("{{\"result\":\"nok\",\
+			     			\"error_code\":\"{}\",\
+			     			\"error_msg\":\"{}\"\
+			     			}}", e,  EIdDonkeyCard::get_error_message(e))
+	}	
+}
+
+fn signature_auth(eid_card: EIdDonkeyCard, params: &str) -> String {
+	let split_params = params.split("=");
+	let vec_params : Vec<&str> = split_params.collect();
+
+	if vec_params.len() <= 1 {
+		return format!("{{\"result\":\"nok\",\
+			     			\"error_code\":\"{}\",\
+			     			\"error_msg\":\"{}\"\
+			     			}}", 501,  "Bad data format")
+	}
+
+	println!("{:?}", vec_params[1]);
+	// TODO: fix unwrap
+	let data = hex::decode(vec_params[1].to_uppercase().as_bytes()).unwrap();
+	println!("Start signing");
+	let signature_res = eid_card.sign_with_auth_cert(&data);
+
+	match signature_res {
+		Ok(signature) => format!("{{\"result\":\"ok\",\"signature\": \"{}\"}}", 
+	 							base64::encode(&signature)),
+		Err(e) => format!("{{\"result\":\"nok\",\
+			     			\"error_code\":\"{}\",\
+			     			\"error_msg\":\"{}\"\
+			     			}}", e,  EIdDonkeyCard::get_error_message(e))
+	}	
+}
+
+fn signature_sign(eid_card: EIdDonkeyCard, params: &str) -> String {
+	let split_params = params.split("=");
+	let vec_params : Vec<&str> = split_params.collect();
+
+	if vec_params.len() <= 1 {
+		return format!("{{\"result\":\"nok\",\
+			     			\"error_code\":\"{}\",\
+			     			\"error_msg\":\"{}\"\
+			     			}}", 501,  "Bad data format")
+	}
+
+	println!("{:?}", vec_params[1]);
+	// TODO: fix unwrap
+	let data = hex::decode(vec_params[1].to_uppercase().as_bytes()).unwrap();
+	println!("Start signing");
+	let signature_res = eid_card.sign_with_sign_cert(&data);
+
+	match signature_res {
+		Ok(signature) => format!("{{\"result\":\"ok\",\"signature\": \"{}\"}}", 
+	 							base64::encode(&signature)),
+		Err(e) => format!("{{\"result\":\"nok\",\
+			     			\"error_code\":\"{}\",\
+			     			\"error_msg\":\"{}\"\
+			     			}}", e,  EIdDonkeyCard::get_error_message(e))
+	}	
+}
+
+fn certificates_authentication(eid_card: EIdDonkeyCard) -> String {
+	let cert_res = eid_card.read_authentication_cert();
+
+	match cert_res {
+		Ok(cert) => format!("{{\"result\":\"ok\",\"certificate\":\"{}\"}}", 
+	 							base64::encode(&cert)),
+		Err(e) => format!("{{\"result\":\"nok\",\
+			     			\"error_code\":\"{}\",\
+			     			\"error_msg\":\"{}\"\
+			     			}}", e,  EIdDonkeyCard::get_error_message(e))
+	}	
+}
+
+fn certificates_signing(eid_card: EIdDonkeyCard) -> String {
+	let cert_res = eid_card.read_signing_cert();
+
+	match cert_res {
+		Ok(cert) => format!("{{\"result\":\"ok\",\"certificate\":\"{}\"}}", 
+	 							base64::encode(&cert)),
+		Err(e) => format!("{{\"result\":\"nok\",\
+			     			\"error_code\":\"{}\",\
+			     			\"error_msg\":\"{}\"\
+			     			}}", e,  EIdDonkeyCard::get_error_message(e))
+	}	
+}
+
+fn certificates_rootca(eid_card: EIdDonkeyCard) -> String {
+	let cert_res = eid_card.read_rootca_cert();
+
+	match cert_res {
+		Ok(cert) => format!("{{\"result\":\"ok\",\"certificate\":\"{}\"}}", 
+	 							base64::encode(&cert)),
+		Err(e) => format!("{{\"result\":\"nok\",\
+			     			\"error_code\":\"{}\",\
+			     			\"error_msg\":\"{}\"\
+			     			}}", e,  EIdDonkeyCard::get_error_message(e))
+	}	
+}
+
+fn certificates_ca(eid_card: EIdDonkeyCard) -> String {
+	let cert_res = eid_card.read_ca_cert();
+
+	match cert_res {
+		Ok(cert) => format!("{{\"result\":\"ok\",\"certificate\":\"{}\"}}", 
+	 							base64::encode(&cert)),
+		Err(e) => format!("{{\"result\":\"nok\",\
+			     			\"error_code\":\"{}\",\
+			     			\"error_msg\":\"{}\"\
+			     			}}", e,  EIdDonkeyCard::get_error_message(e))
+	}	
+}
+
+fn certificates_rrn(eid_card: EIdDonkeyCard) -> String {
+	let cert_res = eid_card.read_rrn_cert();
+
+	match cert_res {
+		Ok(cert) => format!("{{\"result\":\"ok\",\"certificate\":\"{}\"}}", 
+	 							base64::encode(&cert)),
 		Err(e) => format!("{{\"result\":\"nok\",\
 			     			\"error_code\":\"{}\",\
 			     			\"error_msg\":\"{}\"\
@@ -179,18 +298,13 @@ fn post_handler(req: Request, mut res: Response) {
 fn connect_card() -> Result<EIdDonkeyCard, u32> {
 	let reader = EIdDonkeyCard::list_readers();
 	match reader {
-		Ok(readers) => {
-			let eid_card_res = EIdDonkeyCard::new(&readers[0]);
-			match eid_card_res {
-			    Ok(eid_card) => Ok(eid_card),
-			    Err(e) => Err(e)
-			}
-		},
+		Ok(readers) => Ok(EIdDonkeyCard::new(&readers[0])),
 		Err(e) => Err(e)
 	}
 }
 
-fn call_route_get_handler(uri: &str) -> Option<Vec<u8>> {
+fn call_route_get_handler(uri: &str, params: &str) -> Option<Vec<u8>> {
+
 	match uri {
 	    "/version" => Some(version().into_bytes()),
 	    "/identity" => { 
@@ -218,8 +332,7 @@ fn call_route_get_handler(uri: &str) -> Option<Vec<u8>> {
 			     			\"error_code\":\"{}\",\
 			     			\"error_msg\":\"{}\"\
 			     			}}", e, EIdDonkeyCard::get_error_message(e)).into_bytes())
-	    	}
-	    	
+	    	} 	
 	    },
 	    "/status" => {
 	    	match connect_card() {
@@ -228,8 +341,70 @@ fn call_route_get_handler(uri: &str) -> Option<Vec<u8>> {
 			     			\"error_code\":\"{}\",\
 			     			\"error_msg\":\"{}\"\
 			     			}}", e, EIdDonkeyCard::get_error_message(e)).into_bytes())
+	    	}	    	
+	    },
+	    "/signature/authentication" => {
+	    	match connect_card() {
+	    		Ok(card) => Some(signature_auth(card, params).into_bytes()),
+		    	Err(e) => Some(format!("{{\"result\":\"nok\",\
+			     			\"error_code\":\"{}\",\
+			     			\"error_msg\":\"{}\"\
+			     			}}", e, EIdDonkeyCard::get_error_message(e)).into_bytes())
 	    	}
-	    	
+	    },
+	    "/signature/signing" => {
+	    	match connect_card() {
+	    		Ok(card) => Some(signature_sign(card, params).into_bytes()),
+		    	Err(e) => Some(format!("{{\"result\":\"nok\",\
+			     			\"error_code\":\"{}\",\
+			     			\"error_msg\":\"{}\"\
+			     			}}", e, EIdDonkeyCard::get_error_message(e)).into_bytes())
+	    	}
+	    },
+	    "/certificates/authentication" => {
+	    	match connect_card() {
+	    		Ok(card) => Some(certificates_authentication(card).into_bytes()),
+		    	Err(e) => Some(format!("{{\"result\":\"nok\",\
+			     			\"error_code\":\"{}\",\
+			     			\"error_msg\":\"{}\"\
+			     			}}", e, EIdDonkeyCard::get_error_message(e)).into_bytes())
+	    	}
+	    },
+	    "/certificates/signing" => {
+	    	match connect_card() {
+	    		Ok(card) => Some(certificates_signing(card).into_bytes()),
+		    	Err(e) => Some(format!("{{\"result\":\"nok\",\
+			     			\"error_code\":\"{}\",\
+			     			\"error_msg\":\"{}\"\
+			     			}}", e, EIdDonkeyCard::get_error_message(e)).into_bytes())
+	    	}
+	    },
+	    "/certificates/rootca" => {
+	    	match connect_card() {
+	    		Ok(card) => Some(certificates_rootca(card).into_bytes()),
+		    	Err(e) => Some(format!("{{\"result\":\"nok\",\
+			     			\"error_code\":\"{}\",\
+			     			\"error_msg\":\"{}\"\
+			     			}}", e, EIdDonkeyCard::get_error_message(e)).into_bytes())
+	    	}
+	    },
+	    "/certificates/ca" => {
+	    	match connect_card() {
+	    		Ok(card) => Some(certificates_ca(card).into_bytes()),
+		    	Err(e) => Some(format!("{{\"result\":\"nok\",\
+			     			\"error_code\":\"{}\",\
+			     			\"error_msg\":\"{}\"\
+			     			}}", e, EIdDonkeyCard::get_error_message(e)).into_bytes())
+	    	}
+	    },
+	    "/certificates/rrn" => {
+	    	match connect_card() {
+	    		Ok(card) => Some(certificates_rrn(card).into_bytes()),
+		    	Err(e) => Some(format!("{{\"result\":\"nok\",\
+			     			\"error_code\":\"{}\",\
+			     			\"error_msg\":\"{}\"\
+			     			}}", e, EIdDonkeyCard::get_error_message(e)).into_bytes())
+	    	}
 	    },
 	    _ => None,
 	}
@@ -238,9 +413,14 @@ fn call_route_get_handler(uri: &str) -> Option<Vec<u8>> {
 fn get_handler(req: Request, mut res: Response) {
 
  	match req.uri {
- 		RequestUri::AbsolutePath(ref path) => {
+ 		RequestUri::AbsolutePath(ref uri) => {
 
- 			let body = call_route_get_handler(path);
+	 		println!("Incoming URI [{}]", uri);
+			let split_uri = uri.split("?");
+			let parts_uri: Vec<&str> = split_uri.collect();
+			let params = if parts_uri.len() > 1 { parts_uri[1] } else { "" };
+
+ 			let body = call_route_get_handler(parts_uri[0], params);
  			match body {
  				Some(ref data) => {
  					// Headers when call succeeded

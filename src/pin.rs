@@ -1,4 +1,3 @@
-
 use std::ptr;
 
 pub const PINCODE_OK: u32				= 0;
@@ -18,13 +17,11 @@ extern {
 fn getPINCode(pincode: *mut u8, len: *mut usize) -> u32 {
 
 	unsafe {
-		*len = 6; 
+		*len = 4; 
 		ptr::write(pincode.offset(0), 0x31);
 		ptr::write(pincode.offset(1), 0x32);
 		ptr::write(pincode.offset(2), 0x33);
 		ptr::write(pincode.offset(3), 0x34);
-		ptr::write(pincode.offset(4), 0x35);
-		ptr::write(pincode.offset(5), 0x36);
     }
 
 	return PINCODE_OK;

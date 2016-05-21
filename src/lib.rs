@@ -1,28 +1,39 @@
 extern crate libc;
-pub mod card;
-pub mod pin;
+mod card;
+mod pin;
 use std::io::prelude::*;
 use std::fs::File;
 use std::sync::{Once, ONCE_INIT, Mutex, Arc};
+use std::sync::MutexGuard;
 use std::{mem};
 
 use card::*;
 use pin::*;
+
+const AUTH_KEYID: u8 = 0x82;
+const SIGN_KEYID: u8 = 0x83;
+
+const SHA1_PSS: u8 = 0x10;
+const SHA256_PSS: u8 = 0x20;
+const PKCS1: u8 = 0x01; 
 
 static IDENTITY_FILE_ID: &'static[u8]		= &[0x00, 0xA4, 0x08, 0x0C, 0x06, 0x3F, 0x00, 0xDF, 0x01, 0x40, 0x31];
 static IDENTITY_SIGN_FILE_ID: &'static[u8] 	= &[0x00, 0xA4, 0x08, 0x0C, 0x06, 0x3F, 0x00, 0xDF, 0x01, 0x40, 0x32];
 static ADDRESS_FILE_ID: &'static[u8] 		= &[0x00, 0xA4, 0x08, 0x0C, 0x06, 0x3F, 0x00, 0xDF, 0x01, 0x40, 0x33];
 static ADDRESS_SIGN_FILE_ID: &'static[u8] 	= &[0x00, 0xA4, 0x08, 0x0C, 0x06, 0x3F, 0x00, 0xDF, 0x01, 0x40, 0x34];
 static PHOTO_FILE_ID: &'static[u8] 			= &[0x00, 0xA4, 0x08, 0x0C, 0x06, 0x3F, 0x00, 0xDF, 0x01, 0x40, 0x35];
-static AUTHN_CERT_FILE_ID: &'static[u8] 	= &[0x00, 0xA4, 0x08, 0x0C, 0x06, 0x3F, 0x00, 0xDF, 0x01, 0x40, 0x38];
-static SIGN_CERT_FILE_ID: &'static[u8] 		= &[0x00, 0xA4, 0x08, 0x0C, 0x06, 0x3F, 0x00, 0xDF, 0x01, 0x40, 0x39];
-static CA_CERT_FILE_ID: &'static[u8] 		= &[0x00, 0xA4, 0x08, 0x0C, 0x06, 0x3F, 0x00, 0xDF, 0x01, 0x40, 0x3A];
-static ROOT_CERT_FILE_ID: &'static[u8] 		= &[0x00, 0xA4, 0x08, 0x0C, 0x06, 0x3F, 0x00, 0xDF, 0x01, 0x40, 0x3B];
-static RRN_CERT_FILE_ID: &'static[u8] 		= &[0x00, 0xA4, 0x08, 0x0C, 0x06, 0x3F, 0x00, 0xDF, 0x01, 0x40, 0x3C];
+static AUTHN_CERT_FILE_ID: &'static[u8] 	= &[0x00, 0xA4, 0x08, 0x0C, 0x06, 0x3F, 0x00, 0xDF, 0x00, 0x50, 0x38];
+static SIGN_CERT_FILE_ID: &'static[u8] 		= &[0x00, 0xA4, 0x08, 0x0C, 0x06, 0x3F, 0x00, 0xDF, 0x00, 0x50, 0x39];
+static CA_CERT_FILE_ID: &'static[u8] 		= &[0x00, 0xA4, 0x08, 0x0C, 0x06, 0x3F, 0x00, 0xDF, 0x00, 0x50, 0x3A];
+static ROOT_CERT_FILE_ID: &'static[u8] 		= &[0x00, 0xA4, 0x08, 0x0C, 0x06, 0x3F, 0x00, 0xDF, 0x00, 0x50, 0x3B];
+static RRN_CERT_FILE_ID: &'static[u8] 		= &[0x00, 0xA4, 0x08, 0x0C, 0x06, 0x3F, 0x00, 0xDF, 0x00, 0x50, 0x3C];
 const TAG_TWO_FIRST_FIRST_NAMES: u8         = 8;
 const TAG_NOBLE_CONDITION: u8               = 14;
 const TAG_SPECIAL_STATUS: u8                = 16;
+
 pub const EIDONKEY_READ_ERROR: u32 			= 0x80120001;
+pub const EIDONKEY_SIGN_ERROR: u32 			= 0x80120002;
+
 
 #[derive(Clone)]
 pub struct EIdDonkeyCard {
@@ -57,10 +68,6 @@ pub struct EIdAddress {
 	pub city: String,
 	pub address: Vec<u8>,
 	pub signature: Vec<u8>,
-}
-
-pub struct EIdPhoto {
-	pub photo: Vec<u8>,
 }
 
 pub struct EIdStatus {
@@ -165,6 +172,39 @@ fn get_protocol_string(prot: u32) -> String {
 		_ => "Unknown active protocol".to_string()
 	}
 }
+
+fn get_response(card_handle: MutexGuard<DonkeyCardConnect>,len: u8, response: &mut Vec<u8>) -> Result< Vec<u8>, u32> {
+	let mut get_cmd: Vec<u8> = vec![0x00, 0xC0, 0x00, 0x00, len];
+	println!("get_response: get response len [{:02X}]", len);
+
+	let result = card_handle.transmit(&get_cmd);
+	match result {
+		Ok(resp) => {
+			println!("select: Get response finished {:X}:{:X}", resp.sw[0], resp.sw[1]);
+			let mut copy_data = resp.data.clone();
+			response.append(&mut copy_data);
+			if (resp.sw[0] == 0x90) && (resp.sw[1] == 0x00) {
+				let copy_response = response.clone();
+				Ok(copy_response)
+			}
+			else {
+				if resp.sw[0] == 0x61 {
+					if resp.sw[1] == 0x00 {
+						get_response(card_handle, 0xFF, response)
+					}
+					else {
+						get_response(card_handle, resp.sw[1], response)
+					}
+				}
+				else {
+					Err(102)
+				}
+			}
+		},
+		Err(e) => Err(e),
+	}
+}
+
 
 impl EIdDonkeyCard {
 
@@ -481,13 +521,11 @@ impl EIdDonkeyCard {
 		}
 	}
 
-	pub fn read_photo(&self) -> Result< EIdPhoto, u32> {
+	pub fn read_photo(&self) -> Result< Vec<u8>, u32> {
 		let photo_res = self.read_file(PHOTO_FILE_ID);
 		match photo_res {
 			Ok(img) => {
-				Ok(EIdPhoto {
-					photo: img
-				})
+				Ok(img)
 			},
 			Err(e) => Err(e),
 		}
@@ -507,262 +545,483 @@ impl EIdDonkeyCard {
 		}
 	}
 
-/*
-	private ResponseAPDU verifyPin(int retriesLeft) throws CardException, UserCancelledException {
-		char[] pin = this.dialogs.getPin(retriesLeft);
-		byte[] verifyData = new byte[] { (byte) (0x20 | pin.length), (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF,
-				(byte) 0xFF, (byte) 0xFF, (byte) 0xFF };
-		for (int idx = 0; idx < pin.length; idx += 2) {
-			char digit1 = pin[idx];
-			char digit2;
-			if (idx + 1 < pin.length) {
-				digit2 = pin[idx + 1];
-			} else {
-				digit2 = '0' + 0xf;
+	pub fn read_authentication_cert(&self) -> Result< Vec<u8>, u32> {
+		let cert_auth_res = self.read_file(AUTHN_CERT_FILE_ID);
+		match cert_auth_res {
+			Ok(certificate) => Ok(certificate),
+			Err(e) => Err(e),
+		}
+	}
+
+	pub fn read_signing_cert(&self) -> Result< Vec<u8>, u32> {
+		let cert_sign_res = self.read_file(SIGN_CERT_FILE_ID);
+		match cert_sign_res {
+			Ok(certificate) => Ok(certificate),
+			Err(e) => Err(e),
+		}
+	}
+
+	pub fn read_ca_cert(&self) -> Result< Vec<u8>, u32> {
+		let ca_cert_res = self.read_file(CA_CERT_FILE_ID);
+		match ca_cert_res {
+			Ok(certificate) => Ok(certificate),
+			Err(e) => Err(e),
+		}
+	}
+
+	pub fn read_rootca_cert(&self) -> Result< Vec<u8>, u32> {
+		let root_cert_res = self.read_file(ROOT_CERT_FILE_ID);
+		match root_cert_res {
+			Ok(certificate) => Ok(certificate),
+			Err(e) => Err(e),
+		}
+	}
+
+	pub fn read_rrn_cert(&self) -> Result< Vec<u8>, u32> {
+		let root_cert_res = self.read_file(RRN_CERT_FILE_ID);
+		match root_cert_res {
+			Ok(certificate) => Ok(certificate),
+			Err(e) => Err(e),
+		}
+	}
+
+	fn verify(&self, pin_ref: u8, pin: String) -> Result< (), u32> {
+		let card_handle = self.card_handle.lock().unwrap();
+		let mut command: Vec<u8> = vec![0x00, 0x20, 0x00, pin_ref, 0x08, 0x2C, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF];
+		let pin_len : u8 = 0x20 | (0x0F & (pin.len() as u8));
+		let mut i = 0;
+		let mut j = 0;
+
+		command[5] = pin_len;
+		for b in pin.into_bytes() {
+			if (i % 2) == 0 {
+				command[6+j] = 0xF0 & ((0x0F & b) << 4);
 			}
-			byte value = (byte) (byte) ((digit1 - '0' << 4) + (digit2 - '0'));
-			verifyData[idx / 2 + 1] = value;
+			else {
+				command[6+j] = command[6+j] | (0x0F & b);
+				j = j + 1;
+			}
+			i = i+1;
 		}
-		Arrays.fill(pin, (char) 0); // minimize exposure
 
-		this.view.addDetailMessage("verifying PIN...");
-		CommandAPDU verifyApdu = new CommandAPDU(0x00, 0x20, 0x00, 0x01, verifyData);
-		try {
-			ResponseAPDU responseApdu = transmit(verifyApdu);
-			return responseApdu;
-		} finally {
-			Arrays.fill(verifyData, (byte) 0); // minimize exposure
+		let result = card_handle.transmit(&command);
+		match result {
+			Ok(resp) => {
+				if (resp.sw[0] == 0x90) && (resp.sw[1] == 0x00) {
+					Ok(())
+				}
+				else {
+					println!("sw0:{:X}, sw1:{:X}", resp.sw[0], resp.sw[1]);
+					Err(102)
+				}
+			},
+			Err(e) => Err(e),
 		}
 	}
-*/
 
-	pub fn verify_pin_dialog(&self) {
-		let pincode = get_pincode();
+	fn select(&self, signAlgo:u8, signKey: u8) -> Result< (), u32> {
+		let card_handle = self.card_handle.lock().unwrap();
+		let mut set_cmd: Vec<u8> = vec![0x00, 0x22, 0x41, 0xB6, 0x05, 0x04, 0x80, signAlgo, 0x84, signKey];
+		println!("select: select Authentication Key");
+
+		let result = card_handle.transmit(&set_cmd);
+		match result {
+			Ok(resp) => {
+				println!("select: Select finished {:X}:{:X}", resp.sw[0], resp.sw[1]);
+				if (resp.sw[0] == 0x90) && (resp.sw[1] == 0x00) {
+					Ok(())
+				}
+				else {
+					println!("sw0:{:X}, sw1:{:X}", resp.sw[0], resp.sw[1]);
+					Err(102)
+				}
+			},
+			Err(e) => Err(e),
+		}
+	}
+
+	fn sign(&self, data: & Vec<u8>) -> Result< Vec<u8>, u32> {
+		let card_handle = self.card_handle.lock().unwrap();
+		let mut sign_cmd: Vec<u8> = vec![0x00, 0x2A, 0x9E, 0x9A];
+		let mut copy_data = data.clone();
+		sign_cmd.push(data.len() as u8);
+		sign_cmd.append(&mut copy_data);
+		sign_cmd.push(0x80);
+
+		print!("sign: data [");
+		for c in sign_cmd.clone() {
+			print!("{:02X}", c);
+		}		
+		println!("]");
+
+		let mut result = card_handle.transmit(&sign_cmd);
+		println!("sign: start signature {}", sign_cmd.len());
+		match result {
+			Ok(resp) => {
+				println!("sign: Signature finished {:X}:{:X}", resp.sw[0], resp.sw[1]);
+				if (resp.sw[0] == 0x90) && (resp.sw[1] == 0x00) {
+					Ok(resp.data)
+				}
+				else {
+					println!("sw0:{:X}, sw1:{:X}", resp.sw[0], resp.sw[1]);
+					if resp.sw[0] == 0x61 {
+						let mut response: Vec<u8> = Vec::new();
+						get_response(card_handle, resp.sw[1], &mut response)
+					}
+					else {
+						Err(102)
+					}
+				}
+			},
+			Err(e) => Err(e),
+		}
+	}
+
+	pub fn sign_with_auth_cert(&self, data: & Vec<u8>) -> Result< (Vec<u8>), u32> {
+		let pincode = get_pincode().unwrap();
+
+		println!("sign_with_auth_cert: enter PIN {}", pincode);
+		let mut res = self.select(PKCS1, AUTH_KEYID);
+		match res {
+			Ok(_) => {
+				println!("sign_with_auth_cert: select Authentication Key succeeded");
+				res = self.verify(0x01, pincode);
+				match res {
+					Ok(_) => {
+						println!("sign_with_auth_cert: PIN verified");
+						self.sign( &data)
+					},
+					Err(e) => Err(e),
+				}
+			},
+			Err(e) => Err(e)
+		}
+	}
+
+	pub fn sign_with_sign_cert(&self, data: & Vec<u8>) -> Result< (Vec<u8>), u32> {
+		let pincode = get_pincode().unwrap();
+
+		println!("sign_with_sign_cert: enter PIN {}", pincode);
+		let mut res = self.select(PKCS1, SIGN_KEYID);
+
+		match res {
+			Ok(_) => {
+				println!("sign_with_sign_cert: select Signature Key succeeded");
+				res = self.verify(0x01, pincode);
+				match res {
+					Ok(_) => {
+						println!("sign_with_sign_cert: PIN verified");
+						self.sign( &data)
+					},
+					Err(e) => Err(e),
+				}
+			},
+			Err(e) => Err(e)
+		}
+	}
+
+}
+
+#[cfg(test)]
+mod tests {
+	extern crate openssl;
+	use self::openssl::x509::X509;
+	use self::openssl::crypto::hash::{hash, Type};
+	use std::fs::File;
+	use super::EIdDonkeyCard;
+	use super::convert_birth_date;
+	use super::copy_vector_to_gender;
+
+	#[test]
+	fn test_read_identity() {
+		let ref reader = EIdDonkeyCard::list_readers().unwrap()[0];
+		let eid_card = EIdDonkeyCard::new(reader);
+		let identity_res = eid_card.read_identity();
+
+		match identity_res {
+			Ok(id) => {
+				println!("card number: {}", id.card_number);
+				print!("chip_number: ");
+				for c in id.chip_number {
+					print!("{:.2X}", c);
+				}			
+				print!("\n");
+				println!("validity begin: {}", id.validity_begin);
+				println!("validity end: {}", id.validity_end);
+				println!("delivery municipality: {}", id.delivery_municipality);
+				println!("national number: {}", id.national_number);
+				println!("name: {}", id.name);
+				match id.second_first_name {
+					Some(n) => println!("second first_name: {}", n),
+					None => println!("second first_name is non-existent"),
+				}
+				println!("third first_name: {}", id.third_first_name);
+				println!("nationality: {}", id.nationality);
+				println!("birth location: {}", id.birth_location);
+				println!("birth date: {}", id.birth_date);
+				println!("sex: {}", id.sex);
+				match id.noble_condition {
+					Some(n) => println!("noble condition: {}", n),
+					None => println!("noble condition is non-existent"),
+				}
+				println!("document type: {}", id.document_type);
+				match id.special_status {
+					Some(n) => println!("special status: {}", n),
+					None => println!("special status is non-existent"),
+				}
+				print!("hash photo: ");
+				for c in id.hash_photo {
+					print!("{:.2X}", c);
+				}			
+				print!("\n");
+				print!("identity: ");
+				for c in id.identity {
+					print!("{:.2X}", c);
+				}			
+				print!("\n");
+				print!("signature: ");
+				for c in id.signature {
+					print!("{:.2X}", c);
+				}			
+				print!("\n");
+				assert!(true);
+			},
+			Err(e) => {
+				println!("Error {:X}", e);
+				assert!(false);
+			},
+		}
+	}
+
+	#[test]
+	fn test_read_address() {
+		let ref reader = EIdDonkeyCard::list_readers().unwrap()[0];
+		let eid_card = EIdDonkeyCard::new(reader);
+		let address_res = eid_card.read_address();
+
+		match address_res {
+			Ok(addr) => {
+				println!("street: {}", addr.street);
+				println!("ZIP code: {}", addr.zip_code);
+				println!("city: {}", addr.city);
+				print!("binary address: ");
+				for c in addr.address {
+					print!("{:.2X}", c);
+				}			
+				print!("\n");
+				print!("signature: ");
+				for c in addr.signature {
+					print!("{:.2X}", c);
+				}			
+				print!("\n");
+				assert!(true);
+			},
+			Err(e) => {
+				println!("Error {:X}", e);
+				assert!(false);
+			},
+		}
+	}
+
+	#[test]
+	fn test_read_address_unsyncronised_access() {
+		let ref reader = EIdDonkeyCard::list_readers().unwrap()[0];
+		let mut eid_card = EIdDonkeyCard::new(reader);
+		let eid_card2 = EIdDonkeyCard::new(reader);
+
+		let address_res = eid_card.read_address();
+
+		match address_res {
+			Ok(addr) => {
+				println!("street: {}", addr.street);
+				println!("ZIP code: {}", addr.zip_code);
+				println!("city: {}", addr.city);
+				print!("binary address: ");
+				for c in addr.address {
+					print!("{:.2X}", c);
+				}			
+				print!("\n");
+				print!("signature: ");
+				for c in addr.signature {
+					print!("{:.2X}", c);
+				}			
+				print!("\n");
+				assert!(true);
+			},
+			Err(e) => {
+				println!("Error {:X}", e);
+				assert!(false);
+			},
+		}
+
+		let address_res2 = eid_card2.read_address();
+		match address_res2 {
+			Ok(addr) => {
+				println!("street2: {}", addr.street);
+				println!("ZIP code2: {}", addr.zip_code);
+				println!("city2: {}", addr.city);
+				print!("binary address2: ");
+				for c in addr.address {
+					print!("{:.2X}", c);
+				}			
+				print!("\n");
+				print!("signature2: ");
+				for c in addr.signature {
+					print!("{:.2X}", c);
+				}			
+				print!("\n");
+				assert!(true);
+			},
+			Err(e) => {
+				println!("Error {:X}", e);
+				assert!(false);
+			},
+		}
 
 	}
 
-/*
-	pub fn verify_pin_pinpad(&self) {
+	#[test]
+	fn test_verify_command() {
+		let ref reader = EIdDonkeyCard::list_readers().unwrap()[0];
+		let mut eid_card = EIdDonkeyCard::new(reader);
 		
-
-	}
-*/
-}
-
-#[test]
-fn test_read_identity() {
-	let ref reader = EIdDonkeyCard::list_readers().unwrap()[0];
-	let eid_card = EIdDonkeyCard::new(reader);
-	let identity_res = eid_card.read_identity();
-
-	match identity_res {
-		Ok(id) => {
-			println!("card number: {}", id.card_number);
-			print!("chip_number: ");
-			for c in id.chip_number {
-				print!("{:.2X}", c);
-			}			
-			print!("\n");
-			println!("validity begin: {}", id.validity_begin);
-			println!("validity end: {}", id.validity_end);
-			println!("delivery municipality: {}", id.delivery_municipality);
-			println!("national number: {}", id.national_number);
-			println!("name: {}", id.name);
-			match id.second_first_name {
-				Some(n) => println!("second first_name: {}", n),
-				None => println!("second first_name is non-existent"),
+		match eid_card.verify(0x01, "1234".to_string())	{
+			Ok(_) => {
+				println!("Verify successful!");
+				assert!(true);
+			},
+			Err(e) =>{ 
+				println!("Verify failed!");
+				assert!(false);
 			}
-			println!("third first_name: {}", id.third_first_name);
-			println!("nationality: {}", id.nationality);
-			println!("birth location: {}", id.birth_location);
-			println!("birth date: {}", id.birth_date);
-			println!("sex: {}", id.sex);
-			match id.noble_condition {
-				Some(n) => println!("noble condition: {}", n),
-				None => println!("noble condition is non-existent"),
-			}
-			println!("document type: {}", id.document_type);
-			match id.special_status {
-				Some(n) => println!("special status: {}", n),
-				None => println!("special status is non-existent"),
-			}
-			print!("hash photo: ");
-			for c in id.hash_photo {
-				print!("{:.2X}", c);
-			}			
-			print!("\n");
-			print!("identity: ");
-			for c in id.identity {
-				print!("{:.2X}", c);
-			}			
-			print!("\n");
-			print!("signature: ");
-			for c in id.signature {
-				print!("{:.2X}", c);
-			}			
-			print!("\n");
-			assert!(true);
-		},
-		Err(e) => {
-			println!("Error {:X}", e);
-			assert!(false);
-		},
-	}
-}
-
-#[test]
-fn test_read_address() {
-	let ref reader = EIdDonkeyCard::list_readers().unwrap()[0];
-	let eid_card = EIdDonkeyCard::new(reader);
-	let address_res = eid_card.read_address();
-
-	match address_res {
-		Ok(addr) => {
-			println!("street: {}", addr.street);
-			println!("ZIP code: {}", addr.zip_code);
-			println!("city: {}", addr.city);
-			print!("binary address: ");
-			for c in addr.address {
-				print!("{:.2X}", c);
-			}			
-			print!("\n");
-			print!("signature: ");
-			for c in addr.signature {
-				print!("{:.2X}", c);
-			}			
-			print!("\n");
-			assert!(true);
-		},
-		Err(e) => {
-			println!("Error {:X}", e);
-			assert!(false);
-		},
-	}
-}
-
-#[test]
-fn test_read_address_unsyncronised_access() {
-	let ref reader = EIdDonkeyCard::list_readers().unwrap()[0];
-	let mut eid_card = EIdDonkeyCard::new(reader);
-	let eid_card2 = EIdDonkeyCard::new(reader);
-
-	let address_res = eid_card.read_address();
-
-	match address_res {
-		Ok(addr) => {
-			println!("street: {}", addr.street);
-			println!("ZIP code: {}", addr.zip_code);
-			println!("city: {}", addr.city);
-			print!("binary address: ");
-			for c in addr.address {
-				print!("{:.2X}", c);
-			}			
-			print!("\n");
-			print!("signature: ");
-			for c in addr.signature {
-				print!("{:.2X}", c);
-			}			
-			print!("\n");
-			assert!(true);
-		},
-		Err(e) => {
-			println!("Error {:X}", e);
-			assert!(false);
-		},
+		}
 	}
 
-	let address_res2 = eid_card2.read_address();
-	match address_res2 {
-		Ok(addr) => {
-			println!("street2: {}", addr.street);
-			println!("ZIP code2: {}", addr.zip_code);
-			println!("city2: {}", addr.city);
-			print!("binary address2: ");
-			for c in addr.address {
-				print!("{:.2X}", c);
-			}			
-			print!("\n");
-			print!("signature2: ");
-			for c in addr.signature {
-				print!("{:.2X}", c);
-			}			
-			print!("\n");
-			assert!(true);
-		},
-		Err(e) => {
-			println!("Error {:X}", e);
-			assert!(false);
-		},
+	#[test]
+	fn test_convert_birth_date() {
+		let mut birt_date = convert_birth_date(&"01 JAN 2014".to_string());
+		assert_eq!(birt_date, "2014-01-01".to_string());
+		birt_date = convert_birth_date(&"01 FEV 2014".to_string());
+		assert_eq!(birt_date, "2014-02-01".to_string());
+		birt_date = convert_birth_date(&"01 MARS 2014".to_string());
+		assert_eq!(birt_date, "2014-03-01".to_string());
+		birt_date = convert_birth_date(&"01 AVR 2014".to_string());
+		assert_eq!(birt_date, "2014-04-01".to_string());
+		birt_date = convert_birth_date(&"01 MAI 2014".to_string());
+		assert_eq!(birt_date, "2014-05-01".to_string());
+		birt_date = convert_birth_date(&"01 JUIN 2014".to_string());
+		assert_eq!(birt_date, "2014-06-01".to_string());
+		birt_date = convert_birth_date(&"01 JUIL 2014".to_string());
+		assert_eq!(birt_date, "2014-07-01".to_string());
+		birt_date = convert_birth_date(&"01 AOUT 2014".to_string());
+		assert_eq!(birt_date, "2014-08-01".to_string());
+		birt_date = convert_birth_date(&"01 SEPT 2014".to_string());
+		assert_eq!(birt_date, "2014-09-01".to_string());
+		birt_date = convert_birth_date(&"01 OCT 2014".to_string());
+		assert_eq!(birt_date, "2014-10-01".to_string());
+		birt_date = convert_birth_date(&"01 NOV 2014".to_string());
+		assert_eq!(birt_date, "2014-11-01".to_string());
+		birt_date = convert_birth_date(&"01 DEC 2014".to_string());
+		assert_eq!(birt_date, "2014-12-01".to_string());
+		birt_date = convert_birth_date(&"01 FEB 2014".to_string());
+		assert_eq!(birt_date, "2014-02-01".to_string());
+		birt_date = convert_birth_date(&"01 MAAR 2014".to_string());
+		assert_eq!(birt_date, "2014-03-01".to_string());
+		birt_date = convert_birth_date(&"01 APR 2014".to_string());
+		assert_eq!(birt_date, "2014-04-01".to_string());
+		birt_date = convert_birth_date(&"01 MEI 2014".to_string());
+		assert_eq!(birt_date, "2014-05-01".to_string());
+		birt_date = convert_birth_date(&"01 JUN 2014".to_string());
+		assert_eq!(birt_date, "2014-06-01".to_string());
+		birt_date = convert_birth_date(&"01 JUL 2014".to_string());
+		assert_eq!(birt_date, "2014-07-01".to_string());
+		birt_date = convert_birth_date(&"01 AUG 2014".to_string());
+		assert_eq!(birt_date, "2014-08-01".to_string());
+		birt_date = convert_birth_date(&"01 SEP 2014".to_string());
+		assert_eq!(birt_date, "2014-09-01".to_string());
+		birt_date = convert_birth_date(&"01 OKT 2014".to_string());
+		assert_eq!(birt_date, "2014-10-01".to_string());
+		birt_date = convert_birth_date(&"01 MÄR 2014".to_string());
+		assert_eq!(birt_date, "2014-03-01".to_string());
+		birt_date = convert_birth_date(&"01 DEZ 2014".to_string());
+		assert_eq!(birt_date, "2014-12-01");
 	}
 
+
+	#[test]
+	fn test_convert_gender() {
+		let v_femme: Vec<u8> = vec![ 'F' as u8 ];
+		let v_women: Vec<u8> = vec![ 'W' as u8 ];
+		let v_vrouw: Vec<u8> = vec![ 'V' as u8 ];
+		let v_man: Vec<u8> = vec![ 'M' as u8 ];
+
+		let mut gender = copy_vector_to_gender(&v_femme, 0, 1);
+		assert_eq!(gender, "F".to_string());
+		let mut gender = copy_vector_to_gender(&v_women, 0, 1);
+		assert_eq!(gender, "F".to_string());
+		let mut gender = copy_vector_to_gender(&v_vrouw, 0, 1);
+		assert_eq!(gender, "F".to_string());
+		let mut gender = copy_vector_to_gender(&v_man, 0, 1);
+		assert_eq!(gender, "M".to_string());
+	}
+
+	#[test]
+	fn test_sign_verify_authentication() {
+		let data = b"The quick brown fox jumps over the lazy dog";
+		let testhash = hash(Type::SHA256, data);
+
+		let ref reader = EIdDonkeyCard::list_readers().unwrap()[0];
+		let eid_card = EIdDonkeyCard::new(reader);
+		// Sign
+		println!("Start signature");
+		let signature_res = eid_card.sign_with_auth_cert(&testhash);
+		match signature_res {
+			Ok(signature) => {
+				// Verify
+				println!("Signature succeeded");
+				print!("signature: [");
+				for c in signature.clone() {
+					print!("{:02X}", c);
+				}		
+				println!("]");
+				let mut file = File::open("./testcard_auth.pem").unwrap();
+				let cert: X509 = X509::from_pem(&mut file).unwrap();
+				let verify = cert.public_key().verify(&testhash[..], &signature[..]);
+			},
+			Err(e) => {
+				assert!(false);
+			}		
+		}
+
+	}
+
+	#[test]
+	fn test_sign_verify_signature() {
+		let data = b"The quick brown fox jumps over the lazy dog";
+		let testhash = hash(Type::SHA256, data);
+
+		let ref reader = EIdDonkeyCard::list_readers().unwrap()[0];
+		let eid_card = EIdDonkeyCard::new(reader);
+		// Sign
+		println!("Start signature");
+		let signature_res = eid_card.sign_with_sign_cert(&testhash);
+		match signature_res {
+			Ok(signature) => {
+				// Verify
+				println!("Signature succeeded");
+				print!("signature: [");
+				for c in signature.clone() {
+					print!("{:02X}", c);
+				}		
+				println!("]");
+				let mut file = File::open("./testcard_auth.pem").unwrap();
+				let cert: X509 = X509::from_pem(&mut file).unwrap();
+				let verify = cert.public_key().verify(&testhash[..], &signature[..]);
+			},
+			Err(e) => {
+				assert!(false);
+			}		
+		}
+
+	}
 }
-
-
-#[test]
-fn test_convert_birth_date() {
-	let mut birt_date = convert_birth_date(&"01 JAN 2014".to_string());
-	assert_eq!(birt_date, "2014-01-01".to_string());
-	birt_date = convert_birth_date(&"01 FEV 2014".to_string());
-	assert_eq!(birt_date, "2014-02-01".to_string());
-	birt_date = convert_birth_date(&"01 MARS 2014".to_string());
-	assert_eq!(birt_date, "2014-03-01".to_string());
-	birt_date = convert_birth_date(&"01 AVR 2014".to_string());
-	assert_eq!(birt_date, "2014-04-01".to_string());
-	birt_date = convert_birth_date(&"01 MAI 2014".to_string());
-	assert_eq!(birt_date, "2014-05-01".to_string());
-	birt_date = convert_birth_date(&"01 JUIN 2014".to_string());
-	assert_eq!(birt_date, "2014-06-01".to_string());
-	birt_date = convert_birth_date(&"01 JUIL 2014".to_string());
-	assert_eq!(birt_date, "2014-07-01".to_string());
-	birt_date = convert_birth_date(&"01 AOUT 2014".to_string());
-	assert_eq!(birt_date, "2014-08-01".to_string());
-	birt_date = convert_birth_date(&"01 SEPT 2014".to_string());
-	assert_eq!(birt_date, "2014-09-01".to_string());
-	birt_date = convert_birth_date(&"01 OCT 2014".to_string());
-	assert_eq!(birt_date, "2014-10-01".to_string());
-	birt_date = convert_birth_date(&"01 NOV 2014".to_string());
-	assert_eq!(birt_date, "2014-11-01".to_string());
-	birt_date = convert_birth_date(&"01 DEC 2014".to_string());
-	assert_eq!(birt_date, "2014-12-01".to_string());
-	birt_date = convert_birth_date(&"01 FEB 2014".to_string());
-	assert_eq!(birt_date, "2014-02-01".to_string());
-	birt_date = convert_birth_date(&"01 MAAR 2014".to_string());
-	assert_eq!(birt_date, "2014-03-01".to_string());
-	birt_date = convert_birth_date(&"01 APR 2014".to_string());
-	assert_eq!(birt_date, "2014-04-01".to_string());
-	birt_date = convert_birth_date(&"01 MEI 2014".to_string());
-	assert_eq!(birt_date, "2014-05-01".to_string());
-	birt_date = convert_birth_date(&"01 JUN 2014".to_string());
-	assert_eq!(birt_date, "2014-06-01".to_string());
-	birt_date = convert_birth_date(&"01 JUL 2014".to_string());
-	assert_eq!(birt_date, "2014-07-01".to_string());
-	birt_date = convert_birth_date(&"01 AUG 2014".to_string());
-	assert_eq!(birt_date, "2014-08-01".to_string());
-	birt_date = convert_birth_date(&"01 SEP 2014".to_string());
-	assert_eq!(birt_date, "2014-09-01".to_string());
-	birt_date = convert_birth_date(&"01 OKT 2014".to_string());
-	assert_eq!(birt_date, "2014-10-01".to_string());
-	birt_date = convert_birth_date(&"01 MÄR 2014".to_string());
-	assert_eq!(birt_date, "2014-03-01".to_string());
-	birt_date = convert_birth_date(&"01 DEZ 2014".to_string());
-	assert_eq!(birt_date, "2014-12-01");
-}
-
-
-#[test]
-fn test_convert_gender() {
-	let v_femme: Vec<u8> = vec![ 'F' as u8 ];
-	let v_women: Vec<u8> = vec![ 'W' as u8 ];
-	let v_vrouw: Vec<u8> = vec![ 'V' as u8 ];
-	let v_man: Vec<u8> = vec![ 'M' as u8 ];
-
-	let mut gender = copy_vector_to_gender(&v_femme, 0, 1);
-	assert_eq!(gender, "F".to_string());
-	let mut gender = copy_vector_to_gender(&v_women, 0, 1);
-	assert_eq!(gender, "F".to_string());
-	let mut gender = copy_vector_to_gender(&v_vrouw, 0, 1);
-	assert_eq!(gender, "F".to_string());
-	let mut gender = copy_vector_to_gender(&v_man, 0, 1);
-	assert_eq!(gender, "M".to_string());
-}
-

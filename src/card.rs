@@ -339,200 +339,173 @@ impl ResponseAPDU {
 	}
 } 
 
-#[test]
-fn test_list_reader() {
-	let donkeycard = DonkeyCard::new();
-	let readers = donkeycard.list_readers();
-	match readers {
-		Ok(names) => {
-			println!("context {:?}", donkeycard.context);
-			println!("reader {}", names[0]);	
-			assert!(true);
-		},
-		Err(code) => {
-			println!("Error code {:?}", code);	
-			assert!(false);			
-		}
-	}
-}
+#[cfg(test)]
+mod tests {
 
-#[test]
-fn test_connect_card(){
-	let donkeycard = DonkeyCard::new();
-	let ref name = donkeycard.list_readers().unwrap()[0];
-	let card = DonkeyCardConnect::new(name);	
-	match card {
-		Ok(donkeysc) => {
-			println!("donkeysc.card_handle {:?}", donkeysc.card_handle);
-			println!("card.active_protocol {:?}", donkeysc.active_protocol);
-			assert!(true);			
-		}
-		Err(code) => {
-			println!("Error code {:?}", code);	
-			assert!(false);				
-		}
-	}
-}
+	use super::DonkeyCard;
+	use super::DonkeyCardConnect;
 
-#[test]
-fn test_status_card(){
-	let donkeycard = DonkeyCard::new();
-	let ref name = donkeycard.list_readers().unwrap()[0];
-	let card = DonkeyCardConnect::new(name).unwrap();	
-	let command: Vec<u8> = vec![0x00, 0xA4, 0x08, 0x0C, 0x06, 0x3F, 0x00, 0xDF, 0x01, 0x40, 0x33];
-	let response = card.status();
-	match response {
-	    Ok(status) => {
-    		println!("Status {:X}", status.status);
-    		println!("Protocol {:X}", status.protocol);
-    		println!("Reader name {}", status.reader_name);
-    		print!("atr ");
- 			for chr in status.atr {
-        		print!("{:X},", chr);
-    		}
-    		print!("\n");
-			assert!(true);			
-		}
-	    Err(code) =>  {
-			println!("Error code {:?}", code);	
-			assert!(false);				
-		},
-	}
-}
-
-
-// select identity file { 0x3F, 0x00, (byte) 0xDF, 0x01, 0x40, 0x31 }
-// CLA   INS   P1    P2    len
-// 0x00, 0xA4, 0x08, 0x0C, 0x06, 0x3F, 0x00, 0xDF, 0x01, 0x40, 0x31 
-// read binary file
-// 0x00, 0xB0, 0x00, 0x00, 0x00 };
-
-#[test]
-fn test_transmit_card(){
-	let donkeycard = DonkeyCard::new();
-	let ref name = donkeycard.list_readers().unwrap()[0];
-	let card = DonkeyCardConnect::new(name).unwrap();	
-	let command: Vec<u8> = vec![0x00, 0xA4, 0x08, 0x0C, 0x06, 0x3F, 0x00, 0xDF, 0x01, 0x40, 0x33];
-	let response = card.transmit(&command);
-	match response {
-	    Ok(resp) => {
-        	print!("sw: ");
- 			for chr in resp.sw.iter() {
-        		print!("{:X}", chr);
-    		}
-        	print!("\n");
-        	print!("data: ");
-        	if resp.data.len() == 0 {
-        		print!("No data");
-        	}
-        	else {
-	 			for chr in resp.data.iter() {
-	        		print!("{:X}", chr);
-	    		}        		
-        	}
-        	print!("\n");
-			assert!(true);			
-		}
-	    Err(code) =>  {
-			println!("Error code {:?}", code);	
-			assert!(false);				
-		},
-	}
-}
-
-#[test]	
-fn test_transmit_readdata_card() {
-	let donkeycard = DonkeyCard::new();
-	let ref name = donkeycard.list_readers().unwrap()[0];
-	let card = DonkeyCardConnect::new(name).unwrap();	
-	let command_select: Vec<u8> = vec![0x00, 0xA4, 0x08, 0x0C, 0x06, 0x3F, 0x00, 0xDF, 0x01, 0x40, 0x31];
-	let response_select = card.transmit(&command_select);
-	match response_select {
-	    Ok(resp) => {
-        	print!("sw: ");
- 			for chr in resp.sw.iter() {
-        		print!("{:X}", chr);
-    		}
-        	print!("\n");
-        	print!("data: ");
-        	if resp.data.len() == 0 {
-        		print!("No data");
-        	}
-        	else {
-	 			for chr in resp.data.iter() {
-	        		print!("{:X}", chr);
-	    		}        		
-        	}
-        	print!("\n");
-			let command_read: Vec<u8> = vec![0x00, 0xB0, 0x00, 0x00, 0xFD ];
-			let response_read = card.transmit(&command_read);
-			match response_read {
-			    Ok(resp) => {
-		        	print!("sw: ");
-		 			for chr in resp.sw.iter() {
-		        		print!("{:X}", chr);
-		    		}
-		        	print!("\n");
-		        	print!("data: ");
-		        	if resp.data.len() == 0 {
-		        		print!("No data");
-		        	}
-		        	else {
-			 			for chr in resp.data.iter() {
-			        		print!("{:X}", chr);
-			    		}        		
-		        	}
-		        	print!("\n");
-		        	let identity = String::from_utf8(resp.data);
-		        	match identity {
-		        		Ok(id) => println!("identity = {}", id),
-		        		Err(e) => println!("UTF8 error = {}", e)
-		        	}
-				},
-				Err(code) =>  {
-					println!("Error code {:?}", code);	
-					assert!(false);				
-				},
+	#[test]
+	fn test_list_reader() {
+		let donkeycard = DonkeyCard::new();
+		let readers = donkeycard.list_readers();
+		match readers {
+			Ok(names) => {
+				println!("context {:?}", donkeycard.context);
+				println!("reader {}", names[0]);	
+				assert!(true);
+			},
+			Err(code) => {
+				println!("Error code {:?}", code);	
+				assert!(false);			
 			}
-			assert!(true);			
 		}
-	    Err(code) =>  {
-			println!("Error code {:?}", code);	
-			assert!(false);				
-		},
 	}
-}
 
-#[test]
-fn test_reset_testeid_card(){
-	let donkeycard = DonkeyCard::new();
-	let ref name = donkeycard.list_readers().unwrap()[0];
-	let card = DonkeyCardConnect::new(name).unwrap();
-//	let command: Vec<u8> = vec![0x00, 0x20, 0x00, 0x84, 0x08, 0x2C, 0x22, 0x22, 0x22, 0x11, 0x11, 0x11, 0xFF];
-	let command: Vec<u8> = vec![0x00, 0x20, 0x00, 0x84, 0x08, 0x2C, 0x11, 0x11, 0x11, 0x22, 0x22, 0x22, 0xFF];
-	let response = card.transmit(&command);
-	match response {
-	    Ok(resp) => {
-        	print!("sw: ");
- 			for chr in resp.sw.iter() {
-        		print!("{:X}", chr);
-    		}
-        	print!("\n");
-        	print!("data: ");
-        	if resp.data.len() == 0 {
-        		print!("No data");
-        	}
-        	else {
-	 			for chr in resp.data.iter() {
-	        		print!("{:X}", chr);
-	    		}        		
-        	}
-        	print!("\n");
-			assert!(true);			
+	#[test]
+	fn test_connect_card(){
+		let donkeycard = DonkeyCard::new();
+		let ref name = donkeycard.list_readers().unwrap()[0];
+		let card = DonkeyCardConnect::new(name);	
+		match card {
+			Ok(donkeysc) => {
+				println!("donkeysc.card_handle {:?}", donkeysc.card_handle);
+				println!("card.active_protocol {:?}", donkeysc.active_protocol);
+				assert!(true);			
+			}
+			Err(code) => {
+				println!("Error code {:?}", code);	
+				assert!(false);				
+			}
 		}
-	    Err(code) =>  {
-			println!("Error code {:?}", code);	
-			assert!(false);				
-		},
+	}
+
+	#[test]
+	fn test_status_card(){
+		let donkeycard = DonkeyCard::new();
+		let ref name = donkeycard.list_readers().unwrap()[0];
+		let card = DonkeyCardConnect::new(name).unwrap();	
+		let command: Vec<u8> = vec![0x00, 0xA4, 0x08, 0x0C, 0x06, 0x3F, 0x00, 0xDF, 0x01, 0x40, 0x33];
+		let response = card.status();
+		match response {
+		    Ok(status) => {
+	    		println!("Status {:X}", status.status);
+	    		println!("Protocol {:X}", status.protocol);
+	    		println!("Reader name {}", status.reader_name);
+	    		print!("atr ");
+	 			for chr in status.atr {
+	        		print!("{:X},", chr);
+	    		}
+	    		print!("\n");
+				assert!(true);			
+			}
+		    Err(code) =>  {
+				println!("Error code {:?}", code);	
+				assert!(false);				
+			},
+		}
+	}
+
+
+	// select identity file { 0x3F, 0x00, (byte) 0xDF, 0x01, 0x40, 0x31 }
+	// CLA   INS   P1    P2    len
+	// 0x00, 0xA4, 0x08, 0x0C, 0x06, 0x3F, 0x00, 0xDF, 0x01, 0x40, 0x31 
+	// read binary file
+	// 0x00, 0xB0, 0x00, 0x00, 0x00 };
+
+	#[test]
+	fn test_transmit_card(){
+		let donkeycard = DonkeyCard::new();
+		let ref name = donkeycard.list_readers().unwrap()[0];
+		let card = DonkeyCardConnect::new(name).unwrap();	
+		let command: Vec<u8> = vec![0x00, 0xA4, 0x08, 0x0C, 0x06, 0x3F, 0x00, 0xDF, 0x01, 0x40, 0x33];
+		let response = card.transmit(&command);
+		match response {
+		    Ok(resp) => {
+	        	print!("sw: ");
+	 			for chr in resp.sw.iter() {
+	        		print!("{:X}", chr);
+	    		}
+	        	print!("\n");
+	        	print!("data: ");
+	        	if resp.data.len() == 0 {
+	        		print!("No data");
+	        	}
+	        	else {
+		 			for chr in resp.data.iter() {
+		        		print!("{:X}", chr);
+		    		}        		
+	        	}
+	        	print!("\n");
+				assert!(true);			
+			}
+		    Err(code) =>  {
+				println!("Error code {:?}", code);	
+				assert!(false);				
+			},
+		}
+	}
+
+	#[test]	
+	fn test_transmit_readdata_card() {
+		let donkeycard = DonkeyCard::new();
+		let ref name = donkeycard.list_readers().unwrap()[0];
+		let card = DonkeyCardConnect::new(name).unwrap();	
+		let command_select: Vec<u8> = vec![0x00, 0xA4, 0x08, 0x0C, 0x06, 0x3F, 0x00, 0xDF, 0x01, 0x40, 0x31];
+		let response_select = card.transmit(&command_select);
+		match response_select {
+		    Ok(resp) => {
+	        	print!("sw: ");
+	 			for chr in resp.sw.iter() {
+	        		print!("{:X}", chr);
+	    		}
+	        	print!("\n");
+	        	print!("data: ");
+	        	if resp.data.len() == 0 {
+	        		print!("No data");
+	        	}
+	        	else {
+		 			for chr in resp.data.iter() {
+		        		print!("{:X}", chr);
+		    		}        		
+	        	}
+	        	print!("\n");
+				let command_read: Vec<u8> = vec![0x00, 0xB0, 0x00, 0x00, 0xFD ];
+				let response_read = card.transmit(&command_read);
+				match response_read {
+				    Ok(resp) => {
+			        	print!("sw: ");
+			 			for chr in resp.sw.iter() {
+			        		print!("{:X}", chr);
+			    		}
+			        	print!("\n");
+			        	print!("data: ");
+			        	if resp.data.len() == 0 {
+			        		print!("No data");
+			        	}
+			        	else {
+				 			for chr in resp.data.iter() {
+				        		print!("{:X}", chr);
+				    		}        		
+			        	}
+			        	print!("\n");
+			        	let identity = String::from_utf8(resp.data);
+			        	match identity {
+			        		Ok(id) => println!("identity = {}", id),
+			        		Err(e) => println!("UTF8 error = {}", e)
+			        	}
+					},
+					Err(code) =>  {
+						println!("Error code {:?}", code);	
+						assert!(false);				
+					},
+				}
+				assert!(true);			
+			},
+		    Err(code) =>  {
+				println!("Error code {:?}", code);	
+				assert!(false);				
+			}
+		}
 	}
 }
