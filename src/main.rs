@@ -7,14 +7,16 @@ extern crate eidonkey;
 use std::io::Write;
 use std::env;
 use std::fs::File;
+use std::sync::Arc;
 
 use hyper::server::{Server,Request,Response};
 use hyper::header::{AccessControlAllowOrigin, ContentLength, ContentType};
-use hyper::net::Openssl;
 use hyper::uri::RequestUri;
 use hyper::status::StatusCode;
+use hyper::net::Openssl;
 
-use openssl::x509::X509Generator;
+use openssl::ssl::{SslMethod, SslContext};
+use openssl::x509::{X509Generator, X509FileType};
 use openssl::x509::extension::{Extension, KeyUsageOption, ExtKeyUsageOption};
 use openssl::crypto::hash::Type;
 
@@ -456,7 +458,11 @@ fn main_handler(req: Request, mut res: Response) {
 
 // Thighten the SSL server protocols: TLS1.2 only
 fn start_server() {
-	let ssl = Openssl::with_cert_and_key(SERVER_CERTIFICATE_FILE, SERVER_PRIVATE_KEY_FILE).unwrap();
+	let mut ssl_ctx = SslContext::new(SslMethod::Tlsv1_2).unwrap();
+	ssl_ctx.set_cipher_list("AES256-GCM-SHA384:AES256-SHA256:AES128-GCM-SHA256:AES128-SHA256");
+    ssl_ctx.set_certificate_file(SERVER_CERTIFICATE_FILE, X509FileType::PEM).unwrap();
+    ssl_ctx.set_private_key_file(SERVER_PRIVATE_KEY_FILE, X509FileType::PEM).unwrap();
+    let ssl = Openssl { context: Arc::new(ssl_ctx) };
 	Server::https("127.0.0.1:8443", ssl).unwrap().handle(main_handler).unwrap();
 }
 

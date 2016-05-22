@@ -13,5 +13,6 @@ data-encoding = "1.1.2"
 libc = "0.2"
 
 [features]
-default = [ "mock_pincode" ]
+default = [ "mock_pincode", "tlsv1_2" ]
 mock_pincode = []
+tlsv1_2 = [ "openssl/tlsv1_2" ]
