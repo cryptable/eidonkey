@@ -3,6 +3,13 @@ name = "eidonkey"
 version = "0.1.0"
 authors = ["david <david.tillemans@cryptable.org>"]
 
+# Build pincode
+# links = "pincode"
+build = "build.rs"
+
+[build-dependencies]
+cmake = "0.1"
+
 [dependencies]
 hyper = "0.9"
 mime = "0.2"
@@ -13,6 +20,6 @@ data-encoding = "1.1.2"
 libc = "0.2"
 
 [features]
-default = [ "mock_pincode", "tlsv1_2" ]
-mock_pincode = []
+default = [ "tlsv1_2" ]
+#mock_pincode = []
 tlsv1_2 = [ "openssl/tlsv1_2" ]

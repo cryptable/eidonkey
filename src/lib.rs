@@ -1,6 +1,5 @@
 extern crate libc;
 mod card;
-mod pin;
 use std::io::prelude::*;
 use std::fs::File;
 use std::sync::{Once, ONCE_INIT, Mutex, Arc};
@@ -8,7 +7,6 @@ use std::sync::MutexGuard;
 use std::{mem};
 
 use card::*;
-use pin::*;
 
 const AUTH_KEYID: u8 = 0x82;
 const SIGN_KEYID: u8 = 0x83;
@@ -621,7 +619,7 @@ impl EIdDonkeyCard {
 
 	fn select(&self, signAlgo:u8, signKey: u8) -> Result< (), u32> {
 		let card_handle = self.card_handle.lock().unwrap();
-		let mut set_cmd: Vec<u8> = vec![0x00, 0x22, 0x41, 0xB6, 0x05, 0x04, 0x80, signAlgo, 0x84, signKey];
+		let set_cmd: Vec<u8> = vec![0x00, 0x22, 0x41, 0xB6, 0x05, 0x04, 0x80, signAlgo, 0x84, signKey];
 		println!("select: select Authentication Key");
 
 		let result = card_handle.transmit(&set_cmd);
@@ -654,7 +652,7 @@ impl EIdDonkeyCard {
 		}		
 		println!("]");
 
-		let mut result = card_handle.transmit(&sign_cmd);
+		let result = card_handle.transmit(&sign_cmd);
 		println!("sign: start signature {}", sign_cmd.len());
 		match result {
 			Ok(resp) => {
@@ -677,8 +675,7 @@ impl EIdDonkeyCard {
 		}
 	}
 
-	pub fn sign_with_auth_cert(&self, data: & Vec<u8>) -> Result< (Vec<u8>), u32> {
-		let pincode = get_pincode().unwrap();
+	pub fn sign_with_auth_cert(&self, pincode: String, data: & Vec<u8>) -> Result< (Vec<u8>), u32> {
 
 		println!("sign_with_auth_cert: enter PIN {}", pincode);
 		let mut res = self.select(PKCS1, AUTH_KEYID);
@@ -698,8 +695,7 @@ impl EIdDonkeyCard {
 		}
 	}
 
-	pub fn sign_with_sign_cert(&self, data: & Vec<u8>) -> Result< (Vec<u8>), u32> {
-		let pincode = get_pincode().unwrap();
+	pub fn sign_with_sign_cert(&self, pincode: String, data: & Vec<u8>) -> Result< (Vec<u8>), u32> {
 
 		println!("sign_with_sign_cert: enter PIN {}", pincode);
 		let mut res = self.select(PKCS1, SIGN_KEYID);
@@ -881,6 +877,7 @@ mod tests {
 	}
 
 	#[test]
+	#[ignore]
 	fn test_verify_command() {
 		let ref reader = EIdDonkeyCard::list_readers().unwrap()[0];
 		let mut eid_card = EIdDonkeyCard::new(reader);
@@ -966,6 +963,7 @@ mod tests {
 	}
 
 	#[test]
+	#[ignore]
 	fn test_sign_verify_authentication() {
 		let data = b"The quick brown fox jumps over the lazy dog";
 		let testhash = hash(Type::SHA256, data);
@@ -974,7 +972,7 @@ mod tests {
 		let eid_card = EIdDonkeyCard::new(reader);
 		// Sign
 		println!("Start signature");
-		let signature_res = eid_card.sign_with_auth_cert(&testhash);
+		let signature_res = eid_card.sign_with_auth_cert("1234".to_string(), &testhash);
 		match signature_res {
 			Ok(signature) => {
 				// Verify
@@ -996,6 +994,7 @@ mod tests {
 	}
 
 	#[test]
+	#[ignore]
 	fn test_sign_verify_signature() {
 		let data = b"The quick brown fox jumps over the lazy dog";
 		let testhash = hash(Type::SHA256, data);
@@ -1004,7 +1003,7 @@ mod tests {
 		let eid_card = EIdDonkeyCard::new(reader);
 		// Sign
 		println!("Start signature");
-		let signature_res = eid_card.sign_with_sign_cert(&testhash);
+		let signature_res = eid_card.sign_with_sign_cert("1234".to_string(), &testhash);
 		match signature_res {
 			Ok(signature) => {
 				// Verify

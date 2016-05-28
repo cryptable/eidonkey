@@ -7,9 +7,12 @@ extern crate eidonkey;
 use std::io::Write;
 use std::env;
 use std::fs::File;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
+use std::sync::mpsc::sync_channel;
+use std::sync::mpsc::{SyncSender, Receiver};
+use std::thread;
 
-use hyper::server::{Server,Request,Response};
+use hyper::server::{Handler,Server,Request,Response};
 use hyper::header::{AccessControlAllowOrigin, ContentLength, ContentType};
 use hyper::uri::RequestUri;
 use hyper::status::StatusCode;
@@ -26,14 +29,12 @@ use data_encoding::{base64, hex};
 
 use eidonkey::EIdDonkeyCard;
 
-fn sign() -> String {
-    "{\"result\":\"nok\",\"reason\":\"not_implemented\"}".to_string()
-}
+mod pin;
+use pin::*;
 
 fn version() -> String {
-    "{\"result\":\"ok\",\"version\":\"0.1.0\"}".to_string()
+	"{\"result\":\"ok\",\"version\":\"0.1.0\"".to_string()
 }
-
 fn identity(eid_card: EIdDonkeyCard) -> String {
 
 	let identity_res = eid_card.read_identity();
@@ -145,7 +146,7 @@ fn status(eid_card: EIdDonkeyCard) -> String {
 	}	
 }
 
-fn signature_auth(eid_card: EIdDonkeyCard, params: &str) -> String {
+fn signature_auth(pin_code: String, eid_card: EIdDonkeyCard, params: &str) -> String {
 	let split_params = params.split("=");
 	let vec_params : Vec<&str> = split_params.collect();
 
@@ -160,7 +161,7 @@ fn signature_auth(eid_card: EIdDonkeyCard, params: &str) -> String {
 	// TODO: fix unwrap
 	let data = hex::decode(vec_params[1].to_uppercase().as_bytes()).unwrap();
 	println!("Start signing");
-	let signature_res = eid_card.sign_with_auth_cert(&data);
+	let signature_res = eid_card.sign_with_auth_cert(pin_code, &data);
 
 	match signature_res {
 		Ok(signature) => format!("{{\"result\":\"ok\",\"signature\": \"{}\"}}", 
@@ -172,7 +173,7 @@ fn signature_auth(eid_card: EIdDonkeyCard, params: &str) -> String {
 	}	
 }
 
-fn signature_sign(eid_card: EIdDonkeyCard, params: &str) -> String {
+fn signature_sign(pin_code: String, eid_card: EIdDonkeyCard, params: &str) -> String {
 	let split_params = params.split("=");
 	let vec_params : Vec<&str> = split_params.collect();
 
@@ -187,7 +188,7 @@ fn signature_sign(eid_card: EIdDonkeyCard, params: &str) -> String {
 	// TODO: fix unwrap
 	let data = hex::decode(vec_params[1].to_uppercase().as_bytes()).unwrap();
 	println!("Start signing");
-	let signature_res = eid_card.sign_with_sign_cert(&data);
+	let signature_res = eid_card.sign_with_sign_cert(pin_code, &data);
 
 	match signature_res {
 		Ok(signature) => format!("{{\"result\":\"ok\",\"signature\": \"{}\"}}", 
@@ -264,39 +265,6 @@ fn certificates_rrn(eid_card: EIdDonkeyCard) -> String {
 	}	
 }
 
-// Library of core handler 
-const SERVER_CERTIFICATE_FILE: &'static str = "cert.crt";
-const SERVER_PRIVATE_KEY_FILE: &'static str = "cert.key";
-
-fn call_route_post_handler(uri: &str) -> Option<Vec<u8>> {
-	match uri {
-	    "/sign" => Some(sign().into_bytes()),
-	    _ => None,
-	}
-}
-
-fn post_handler(req: Request, mut res: Response) {
-
- 	match req.uri {
- 		RequestUri::AbsolutePath(ref path) => {
-
- 			let body = call_route_post_handler(path);
- 			match body {
- 				Some(ref data) => {
- 					// Headers when call succeeded
-				 	res.headers_mut().set(ContentType::json());
-				 	res.headers_mut().set(ContentLength(data.len() as u64));
-					let mut res = res.start().unwrap();
-				    res.write_all(data).unwrap();
-				},
- 				None => *res.status_mut() = StatusCode::NotFound
- 			}
- 		},
-		_ => *res.status_mut() = StatusCode::InternalServerError
- 	}
-
-}
-
 fn connect_card() -> Result<EIdDonkeyCard, u32> {
 	let reader = EIdDonkeyCard::list_readers();
 	match reader {
@@ -305,165 +273,187 @@ fn connect_card() -> Result<EIdDonkeyCard, u32> {
 	}
 }
 
-fn call_route_get_handler(uri: &str, params: &str) -> Option<Vec<u8>> {
+// Library of core handler 
+const SERVER_CERTIFICATE_FILE: &'static str = "cert.crt";
+const SERVER_PRIVATE_KEY_FILE: &'static str = "cert.key";
 
-	match uri {
-	    "/version" => Some(version().into_bytes()),
-	    "/identity" => { 
-	    	match connect_card() {
-		    	Ok(card) => Some(identity(card).into_bytes()),
-		    	Err(e) => Some(format!("{{\"result\":\"nok\",\
-			     			\"error_code\":\"{}\",\
-			     			\"error_msg\":\"{}\"\
-			     			}}", e,  EIdDonkeyCard::get_error_message(e)).into_bytes())
-	    	}
-	    },
-	    "/address" => {
-	    	match connect_card() {
-	    		Ok(card) => Some(address(card).into_bytes()),
-		    	Err(e) => Some(format!("{{\"result\":\"nok\",\
-			     			\"error_code\":\"{}\",\
-			     			\"error_msg\":\"{}\"\
-			     			}}", e, EIdDonkeyCard::get_error_message(e)).into_bytes())
-	    	}
-	    },
-	    "/photo" => {
-	    	match connect_card() {
-	    		Ok(card) => Some(photo(card).into_bytes()),
-		    	Err(e) => Some(format!("{{\"result\":\"nok\",\
-			     			\"error_code\":\"{}\",\
-			     			\"error_msg\":\"{}\"\
-			     			}}", e, EIdDonkeyCard::get_error_message(e)).into_bytes())
-	    	} 	
-	    },
-	    "/status" => {
-	    	match connect_card() {
-	    		Ok(card) => Some(status(card).into_bytes()),
-		    	Err(e) => Some(format!("{{\"result\":\"nok\",\
-			     			\"error_code\":\"{}\",\
-			     			\"error_msg\":\"{}\"\
-			     			}}", e, EIdDonkeyCard::get_error_message(e)).into_bytes())
-	    	}	    	
-	    },
-	    "/signature/authentication" => {
-	    	match connect_card() {
-	    		Ok(card) => Some(signature_auth(card, params).into_bytes()),
-		    	Err(e) => Some(format!("{{\"result\":\"nok\",\
-			     			\"error_code\":\"{}\",\
-			     			\"error_msg\":\"{}\"\
-			     			}}", e, EIdDonkeyCard::get_error_message(e)).into_bytes())
-	    	}
-	    },
-	    "/signature/signing" => {
-	    	match connect_card() {
-	    		Ok(card) => Some(signature_sign(card, params).into_bytes()),
-		    	Err(e) => Some(format!("{{\"result\":\"nok\",\
-			     			\"error_code\":\"{}\",\
-			     			\"error_msg\":\"{}\"\
-			     			}}", e, EIdDonkeyCard::get_error_message(e)).into_bytes())
-	    	}
-	    },
-	    "/certificates/authentication" => {
-	    	match connect_card() {
-	    		Ok(card) => Some(certificates_authentication(card).into_bytes()),
-		    	Err(e) => Some(format!("{{\"result\":\"nok\",\
-			     			\"error_code\":\"{}\",\
-			     			\"error_msg\":\"{}\"\
-			     			}}", e, EIdDonkeyCard::get_error_message(e)).into_bytes())
-	    	}
-	    },
-	    "/certificates/signing" => {
-	    	match connect_card() {
-	    		Ok(card) => Some(certificates_signing(card).into_bytes()),
-		    	Err(e) => Some(format!("{{\"result\":\"nok\",\
-			     			\"error_code\":\"{}\",\
-			     			\"error_msg\":\"{}\"\
-			     			}}", e, EIdDonkeyCard::get_error_message(e)).into_bytes())
-	    	}
-	    },
-	    "/certificates/rootca" => {
-	    	match connect_card() {
-	    		Ok(card) => Some(certificates_rootca(card).into_bytes()),
-		    	Err(e) => Some(format!("{{\"result\":\"nok\",\
-			     			\"error_code\":\"{}\",\
-			     			\"error_msg\":\"{}\"\
-			     			}}", e, EIdDonkeyCard::get_error_message(e)).into_bytes())
-	    	}
-	    },
-	    "/certificates/ca" => {
-	    	match connect_card() {
-	    		Ok(card) => Some(certificates_ca(card).into_bytes()),
-		    	Err(e) => Some(format!("{{\"result\":\"nok\",\
-			     			\"error_code\":\"{}\",\
-			     			\"error_msg\":\"{}\"\
-			     			}}", e, EIdDonkeyCard::get_error_message(e)).into_bytes())
-	    	}
-	    },
-	    "/certificates/rrn" => {
-	    	match connect_card() {
-	    		Ok(card) => Some(certificates_rrn(card).into_bytes()),
-		    	Err(e) => Some(format!("{{\"result\":\"nok\",\
-			     			\"error_code\":\"{}\",\
-			     			\"error_msg\":\"{}\"\
-			     			}}", e, EIdDonkeyCard::get_error_message(e)).into_bytes())
-	    	}
-	    },
-	    _ => None,
+struct SenderHandler {
+    sender: Mutex<SyncSender<u32>>,
+    receiver: Mutex<Receiver<String>>
+}
+
+impl SenderHandler {
+	fn call_route_get_handler(&self, uri: &str, params: &str) -> Option<Vec<u8>> {
+
+		match uri {
+		    "/version" => Some(version().into_bytes()),
+		    "/identity" => { 
+		    	match connect_card() {
+			    	Ok(card) => Some(identity(card).into_bytes()),
+			    	Err(e) => Some(format!("{{\"result\":\"nok\",\
+				     			\"error_code\":\"{}\",\
+				     			\"error_msg\":\"{}\"\
+				     			}}", e,  EIdDonkeyCard::get_error_message(e)).into_bytes())
+		    	}
+		    },
+		    "/address" => {
+		    	match connect_card() {
+		    		Ok(card) => Some(address(card).into_bytes()),
+			    	Err(e) => Some(format!("{{\"result\":\"nok\",\
+				     			\"error_code\":\"{}\",\
+				     			\"error_msg\":\"{}\"\
+				     			}}", e, EIdDonkeyCard::get_error_message(e)).into_bytes())
+		    	}
+		    },
+		    "/photo" => {
+		    	match connect_card() {
+		    		Ok(card) => Some(photo(card).into_bytes()),
+			    	Err(e) => Some(format!("{{\"result\":\"nok\",\
+				     			\"error_code\":\"{}\",\
+				     			\"error_msg\":\"{}\"\
+				     			}}", e, EIdDonkeyCard::get_error_message(e)).into_bytes())
+		    	} 	
+		    },
+		    "/status" => {
+		    	match connect_card() {
+		    		Ok(card) => Some(status(card).into_bytes()),
+			    	Err(e) => Some(format!("{{\"result\":\"nok\",\
+				     			\"error_code\":\"{}\",\
+				     			\"error_msg\":\"{}\"\
+				     			}}", e, EIdDonkeyCard::get_error_message(e)).into_bytes())
+		    	}	    	
+		    },
+		    "/signature/authentication" => {
+		    	match connect_card() {
+		    		Ok(card) => {
+		    			self.sender.lock().unwrap().send(0).unwrap();
+		    			let pincode = self.receiver.lock().unwrap().recv().unwrap();
+		    			Some(signature_auth(pincode, card, params).into_bytes())
+		    		},
+			    	Err(e) => Some(format!("{{\"result\":\"nok\",\
+				     			\"error_code\":\"{}\",\
+				     			\"error_msg\":\"{}\"\
+				     			}}", e, EIdDonkeyCard::get_error_message(e)).into_bytes())
+		    	}
+		    },
+		    "/signature/signing" => {
+		    	match connect_card() {
+		    		Ok(card) => {
+		    			self.sender.lock().unwrap().send(0).unwrap();
+		    			let pincode = self.receiver.lock().unwrap().recv().unwrap();
+		    			Some(signature_sign(pincode, card, params).into_bytes())
+		    		},
+			    	Err(e) => Some(format!("{{\"result\":\"nok\",\
+				     			\"error_code\":\"{}\",\
+				     			\"error_msg\":\"{}\"\
+				     			}}", e, EIdDonkeyCard::get_error_message(e)).into_bytes())
+		    	}
+		    },
+		    "/certificates/authentication" => {
+		    	match connect_card() {
+		    		Ok(card) => Some(certificates_authentication(card).into_bytes()),
+			    	Err(e) => Some(format!("{{\"result\":\"nok\",\
+				     			\"error_code\":\"{}\",\
+				     			\"error_msg\":\"{}\"\
+				     			}}", e, EIdDonkeyCard::get_error_message(e)).into_bytes())
+		    	}
+		    },
+		    "/certificates/signing" => {
+		    	match connect_card() {
+		    		Ok(card) => Some(certificates_signing(card).into_bytes()),
+			    	Err(e) => Some(format!("{{\"result\":\"nok\",\
+				     			\"error_code\":\"{}\",\
+				     			\"error_msg\":\"{}\"\
+				     			}}", e, EIdDonkeyCard::get_error_message(e)).into_bytes())
+		    	}
+		    },
+		    "/certificates/rootca" => {
+		    	match connect_card() {
+		    		Ok(card) => Some(certificates_rootca(card).into_bytes()),
+			    	Err(e) => Some(format!("{{\"result\":\"nok\",\
+				     			\"error_code\":\"{}\",\
+				     			\"error_msg\":\"{}\"\
+				     			}}", e, EIdDonkeyCard::get_error_message(e)).into_bytes())
+		    	}
+		    },
+		    "/certificates/ca" => {
+		    	match connect_card() {
+		    		Ok(card) => Some(certificates_ca(card).into_bytes()),
+			    	Err(e) => Some(format!("{{\"result\":\"nok\",\
+				     			\"error_code\":\"{}\",\
+				     			\"error_msg\":\"{}\"\
+				     			}}", e, EIdDonkeyCard::get_error_message(e)).into_bytes())
+		    	}
+		    },
+		    "/certificates/rrn" => {
+		    	match connect_card() {
+		    		Ok(card) => Some(certificates_rrn(card).into_bytes()),
+			    	Err(e) => Some(format!("{{\"result\":\"nok\",\
+				     			\"error_code\":\"{}\",\
+				     			\"error_msg\":\"{}\"\
+				     			}}", e, EIdDonkeyCard::get_error_message(e)).into_bytes())
+		    	}
+		    },
+		    _ => None,
+		}
+	}
+
+	fn get_handler(&self, req: Request, mut res: Response) {
+
+	 	match req.uri {
+	 		RequestUri::AbsolutePath(ref uri) => {
+
+		 		println!("Incoming URI [{}]", uri);
+				let split_uri = uri.split("?");
+				let parts_uri: Vec<&str> = split_uri.collect();
+				let params = if parts_uri.len() > 1 { parts_uri[1] } else { "" };
+
+	 			let body = self.call_route_get_handler(parts_uri[0], params);
+	 			match body {
+	 				Some(ref data) => {
+	 					// Headers when call succeeded
+					 	res.headers_mut().set(ContentType::json());
+					 	res.headers_mut().set(ContentLength(data.len() as u64));
+						let mut res = res.start().unwrap();
+					    res.write_all(data).unwrap();
+					},
+	 				None => *res.status_mut() = StatusCode::NotFound
+	 			}
+	 		},
+			_ => *res.status_mut() = StatusCode::InternalServerError
+	 	}
 	}
 }
 
-fn get_handler(req: Request, mut res: Response) {
+impl Handler for SenderHandler {
 
- 	match req.uri {
- 		RequestUri::AbsolutePath(ref uri) => {
+	fn handle(&self, req: Request, mut res: Response) {
+		// Headers for all requests
+		res.headers_mut().set(
+	    	AccessControlAllowOrigin::Any
+		);
 
-	 		println!("Incoming URI [{}]", uri);
-			let split_uri = uri.split("?");
-			let parts_uri: Vec<&str> = split_uri.collect();
-			let params = if parts_uri.len() > 1 { parts_uri[1] } else { "" };
-
- 			let body = call_route_get_handler(parts_uri[0], params);
- 			match body {
- 				Some(ref data) => {
- 					// Headers when call succeeded
-				 	res.headers_mut().set(ContentType::json());
-				 	res.headers_mut().set(ContentLength(data.len() as u64));
-					let mut res = res.start().unwrap();
-				    res.write_all(data).unwrap();
-				},
- 				None => *res.status_mut() = StatusCode::NotFound
- 			}
- 		},
-		_ => *res.status_mut() = StatusCode::InternalServerError
- 	}
-
-}
-
-fn main_handler(req: Request, mut res: Response) {
-	// Headers for all requests
-	res.headers_mut().set(
-    	AccessControlAllowOrigin::Any
-	);
-
-	match req.method {
-	    hyper::Post => {
-	    	post_handler(req, res);
-        },
-	    hyper::Get => {
-	    	get_handler(req, res);
-        },
-        _ => *res.status_mut() = StatusCode::MethodNotAllowed
+		match req.method {
+		    hyper::Get => {
+		    	self.get_handler( req, res);
+	        },
+	        _ => *res.status_mut() = StatusCode::MethodNotAllowed
+		}
 	}
+
 }
 
 // Thighten the SSL server protocols: TLS1.2 only
-fn start_server() {
+fn start_server(http_req: Mutex<SyncSender<u32>>, http_resp: Mutex<Receiver<String>>) {
 	let mut ssl_ctx = SslContext::new(SslMethod::Tlsv1_2).unwrap();
 	ssl_ctx.set_cipher_list("AES256-GCM-SHA384:AES256-SHA256:AES128-GCM-SHA256:AES128-SHA256");
     ssl_ctx.set_certificate_file(SERVER_CERTIFICATE_FILE, X509FileType::PEM).unwrap();
     ssl_ctx.set_private_key_file(SERVER_PRIVATE_KEY_FILE, X509FileType::PEM).unwrap();
     let ssl = Openssl { context: Arc::new(ssl_ctx) };
-	Server::https("127.0.0.1:8443", ssl).unwrap().handle(main_handler).unwrap();
+	Server::https("127.0.0.1:8443", ssl).unwrap().handle(SenderHandler {
+		sender: http_req,
+		receiver: http_resp
+	}).unwrap();
 }
 
 /// Print help function
@@ -516,5 +506,25 @@ fn main() {
 	}
 
 	// Start service
-	start_server();
+	let (req_tx, req_rx) = sync_channel::<u32>(0);
+	let (resp_tx, resp_rx) = sync_channel::<String>(0);
+
+	let http_child = thread::spawn(move || {
+		start_server(Mutex::new(req_tx), Mutex::new(resp_rx));
+	});
+
+	init_pincode();
+	
+	loop {
+		println!("Waiting for PINcode");
+		let req = req_rx.recv().unwrap();
+		println!("Request PIN code {}", req);
+		let pin_code = get_pincode(0).unwrap();
+		println!("Sending PIN code {}", pin_code);
+		resp_tx.send(pin_code).unwrap();
+	}
+
+	close_pincode();
+
+	let res = http_child.join();
 }
