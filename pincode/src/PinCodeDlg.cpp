@@ -11,8 +11,6 @@ PinCodeDlg::PinCodeDlg(wxWindow* parent,
                 	   wxWindowID id,
 		               const wxString& caption) : wxDialog(parent, id, caption)
 {
-    printf("Construct\n");
-
     wxBoxSizer *topSizer = new wxBoxSizer( wxVERTICAL );
 
     // Pre create OK button to give it to the validator
@@ -48,7 +46,6 @@ PinCodeDlg::PinCodeDlg(wxWindow* parent,
     Bind(wxEVT_COMMAND_BUTTON_CLICKED, &PinCodeDlg::OnOK, this, ok->GetId());
     Bind(wxEVT_COMMAND_BUTTON_CLICKED, &PinCodeDlg::OnCancel, this, cancel->GetId());
 
-    printf("Center\n");
 	Center();
 }
 
@@ -57,7 +54,6 @@ void PinCodeDlg::OnOK(wxCommandEvent& WXUNUSED(event) )
     if (Validate())
     {
         m_sPassword = m_PinCtrl->GetValue();
-        printf("Password [%s]\n", (const char *)m_sPassword.c_str());
         if (GetParent()) {
             GetParent()->SetFocus();
         }

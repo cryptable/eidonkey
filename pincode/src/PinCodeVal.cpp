@@ -5,8 +5,7 @@
 #include "PinCodeVal.h"
 
 PinCodeVal::PinCodeVal(int minLength, int maxLength, wxButton *button)
-{	
-   	wxPrintf(wxT("PinCodeVal::PinCodeVal()\n"));
+{
 	m_minLength = minLength;
 	m_maxLength = maxLength;
 	m_button =  button;
@@ -49,7 +48,6 @@ bool PinCodeVal::IsNumeric(const wxString& val)
 
 bool PinCodeVal::Validate(wxWindow *parent)
 {
-   	wxPrintf(wxT("PinCodeVal::Validate()\n"));
     // If window is disabled, simply return
     if ( !m_validatorWindow->IsEnabled() )
         return true;
@@ -134,7 +132,6 @@ void PinCodeVal::OnChar(wxCommandEvent& event)
 {
     wxKeyEvent &eventKey = (wxKeyEvent &)event;
 
-   	wxPrintf(wxT("PinCodeVal::OnChar()\n"));
     if (!m_validatorWindow)
     {
         event.Skip();
@@ -152,7 +149,6 @@ void PinCodeVal::OnChar(wxCommandEvent& event)
 		return;
 	}
     wxString value = text->GetValue();
-   	wxPrintf(wxT("Get Value %s\n"), value);
 
     if (text->GetValue().length() > m_maxLength)
     {
@@ -163,8 +159,6 @@ void PinCodeVal::OnChar(wxCommandEvent& event)
 
     if (!IsNumeric(value))
     {
-	   	wxPrintf(wxT("Get Value %s\n"), value);
-
         if ( !wxValidator::IsSilent() )
             wxBell();
 

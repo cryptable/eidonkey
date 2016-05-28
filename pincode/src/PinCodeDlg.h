@@ -9,7 +9,7 @@
 class PinCodeDlg: public wxDialog
 {    
 private:
-    
+    wxWindow* m_myParent;
     wxString m_sPassword;
 
     wxTextCtrl* m_PinCtrl;
