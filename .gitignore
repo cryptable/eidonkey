@@ -39,3 +39,6 @@ Cargo.lock
 # Debug files
 *.dSYM/
 *.su
+
+# Eclipse
+.project
