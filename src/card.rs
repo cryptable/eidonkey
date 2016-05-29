@@ -116,8 +116,9 @@ pub struct DonkeyCardStatus {
 	pub atr: Vec<u8>,
 }
 
-#[cfg(target="macos")]
+#[cfg(target_os="macos")]
 pub mod pcsc {
+	use super::*;
 	use libc::c_void;
 	use std::ptr;
 	use std::mem;
@@ -153,7 +154,7 @@ pub mod pcsc {
 		// LONG SCardDisconnect (SCARDHANDLE hCard, DWORD dwDisposition)
 		fn SCardDisconnect(card: u32, disposition: u32) -> u32;
 		// LONG SCardBeginTransaction (SCARDHANDLE hCard)
-		fn SCardBeginTransaction(card: u32) -> c_long;
+		fn SCardBeginTransaction(card: u32) -> u32;
 		// LONG SCardEndTransaction (SCARDHANDLE hCard, DWORD dwDisposition)
 		fn SCardEndTransaction(card: u32, disposition: u32) -> u32;
 		// LONG SCardStatus (SCARDHANDLE hCard, LPSTR szReaderName, LPDWORD pcchReaderLen, LPDWORD pdwState, LPDWORD pdwProtocol, LPBYTE pbAtr, LPDWORD pcbAtrLen)
@@ -287,8 +288,8 @@ pub mod pcsc {
 					match String::from_utf8(reader_name) {
 						Ok(reader) => {
 							return Ok(DonkeyCardStatus {
-								status: state,
-								protocol: prot,
+								status: state as u64,
+								protocol: prot as u64,
 								reader_name: reader,
 								atr: atr_data
 							});
@@ -310,9 +311,9 @@ pub mod pcsc {
 				let scard_io_request_lg = mem::size_of::<Scard_IO_Request>();
 
 				let scard_pci_send: Scard_IO_Request  = Scard_IO_Request { proto:SCARD_PROTOCOL_T0, 
-					pci_length: scard_io_request_lg };
+					pci_length: scard_io_request_lg as u32};
 				let mut scard_pci_recv: Scard_IO_Request  = Scard_IO_Request { proto:0x0000, 
-					pci_length: scard_io_request_lg };
+					pci_length: scard_io_request_lg as u32};
 				let mut recv_buffer: Vec<u8> = vec![0; MAX_RECV_BUFFER];
 				let mut recv_len: usize = MAX_RECV_BUFFER;
 				let ret = SCardTransmit(self.card_handle, &scard_pci_send, sendbuffer.as_ptr(), sendbuffer.len(),
@@ -341,7 +342,7 @@ pub mod pcsc {
 	}
 }
 
-#[cfg(all(unix, target_pointer_width = "64"))]
+#[cfg(all(target_os="linux", target_pointer_width="64"))]
 pub mod pcsc {
 	use super::*;
 	use libc::c_void;
