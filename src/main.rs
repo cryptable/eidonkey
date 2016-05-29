@@ -35,6 +35,7 @@ use pin::*;
 fn version() -> String {
 	"{\"result\":\"ok\",\"version\":\"0.1.0\"".to_string()
 }
+
 fn identity(eid_card: EIdDonkeyCard) -> String {
 
 	let identity_res = eid_card.read_identity();
