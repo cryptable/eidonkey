@@ -7,6 +7,7 @@ use std::sync::MutexGuard;
 use std::{mem};
 
 use card::*;
+use card::pcsc::*;
 
 const AUTH_KEYID: u8 = 0x82;
 const SIGN_KEYID: u8 = 0x83;
@@ -536,7 +537,7 @@ impl EIdDonkeyCard {
 		match status_res {
 			Ok(status) => Ok(EIdStatus {
 				reader_name: status.reader_name.clone(),
-				protocol: get_protocol_string(status.protocol),
+				protocol: get_protocol_string(status.protocol as u32),
 				atr: status.atr.clone()
 			}),
 			Err(e) => Err(e),

@@ -16,6 +16,14 @@ extern {
 }
 
 #[cfg(feature = "mock_pincode")]
+fn initPINCode() {
+}
+
+#[cfg(feature = "mock_pincode")]
+fn closePINCode() {
+}
+
+#[cfg(feature = "mock_pincode")]
 fn getPINCode(nbrRetries: u32, pincode: *mut u8, len: *mut usize) -> u32 {
 
 	unsafe {
@@ -72,7 +80,7 @@ mod tests {
 		let res = get_pincode(0);
 
 		match res {
-			Ok(pin) => assert_eq!("12345", pin),
+			Ok(pin) => assert_eq!("1234", pin),
 			Err(e) => {
 				println!("Error {:?}", e);
 				assert!(false);

@@ -42,3 +42,4 @@ Cargo.lock
 
 # Eclipse
 .project
+.settings
