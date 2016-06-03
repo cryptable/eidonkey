@@ -436,7 +436,7 @@ pub mod pcsc {
 		    			})
 		    	}
 		    	else {
-		    		return Err(ret)
+		    		return Err(ret as u32)
 		    	}
 	    	}
 	    }
