@@ -1,8 +1,10 @@
 extern crate libc;
+#[macro_use]
+extern crate lazy_static;
 mod card;
 use std::io::prelude::*;
 use std::fs::File;
-use std::sync::{Once, ONCE_INIT, Mutex, Arc};
+use std::sync::{Mutex, Arc};
 use std::sync::MutexGuard;
 use std::{mem};
 
@@ -32,7 +34,6 @@ const TAG_SPECIAL_STATUS: u8                = 16;
 
 pub const EIDONKEY_READ_ERROR: u32 			= 0x80120001;
 pub const EIDONKEY_SIGN_ERROR: u32 			= 0x80120002;
-
 
 #[derive(Clone)]
 pub struct EIdDonkeyCard {
@@ -204,16 +205,14 @@ fn get_response(card_handle: MutexGuard<DonkeyCardConnect>,len: u8, response: &m
 	}
 }
 
+lazy_static! {
+	pub static ref EIDDONKEYCARD_LOCK: Mutex<()> = Mutex::new(());
+}
 
 impl EIdDonkeyCard {
 
 	pub fn list_readers() -> Result< Vec<String> , u32> {
-		let connect = DonkeyCard::new();
-		let result = connect.list_readers();
-		match result {
-			Ok(readers) => Ok(readers),
-			Err(e) => Err(e)
-		}
+		DonkeyCard::new().and_then(|con| con.list_readers())
 	}
 
 	pub fn get_error_message(e: u32) -> String {
@@ -235,22 +234,30 @@ impl EIdDonkeyCard {
 		}
 	}
 
-	pub fn new(reader : & String) -> EIdDonkeyCard {
-
-	    // Initialize it to a null value
-	    static mut EIDONKEYCARD_SINGLETON: *const EIdDonkeyCard = 0 as *const EIdDonkeyCard;
-	    static ONCE: Once = ONCE_INIT;
+	pub fn new(reader : & String) -> Result<EIdDonkeyCard, u32> {
 		unsafe {
-			ONCE.call_once(|| {
-				let handle = DonkeyCardConnect::new(reader).unwrap();
-				println!("----- Run once {} : {}", handle.context, handle.card_handle);
-				let eidonkeycard = EIdDonkeyCard {
-						card_handle: Arc::new(Mutex::new(handle)),
-					};
-				// create copy on the heap as a singleton
-				EIDONKEYCARD_SINGLETON = mem::transmute(Box::new(eidonkeycard));
-			});
-			(*EIDONKEYCARD_SINGLETON).clone()
+			static mut EIDONKEYCARD_SINGLETON : *const EIdDonkeyCard = 0 as *const EIdDonkeyCard;
+			let _g = EIDDONKEYCARD_LOCK.lock().unwrap();
+
+			let handle_res = DonkeyCardConnect::new(reader);
+			match handle_res {
+				Ok(handle) => {
+					if EIDONKEYCARD_SINGLETON == 0 as *const EIdDonkeyCard {
+						let eidonkeycard = EIdDonkeyCard {
+									card_handle: Arc::new(Mutex::new(handle)),
+								};
+						EIDONKEYCARD_SINGLETON = mem::transmute(Box::new(eidonkeycard));
+					}
+					Ok((*EIDONKEYCARD_SINGLETON).clone())
+				},
+				Err(e) => {
+					if EIDONKEYCARD_SINGLETON != 0 as *const EIdDonkeyCard {
+						drop(EIDONKEYCARD_SINGLETON);
+						EIDONKEYCARD_SINGLETON = 0 as *const EIdDonkeyCard;
+					}
+					Err(e)
+				}
+			}
 		}
 	}
 

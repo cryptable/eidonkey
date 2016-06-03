@@ -63,8 +63,8 @@ pub const SCARD_W_CANCELLED_BY_USER: u32 	= 0x8010006E;
 pub const SCARD_W_CARD_NOT_AUTHENTICATED: u32 	= 0x8010006F; 
 
 // Custom errors
-pub const PARSING_READERS_ERROR: u32 	= 0x80110001; 
-pub const PARSING_RESPONSE_ERROR: u32 	= 0x80110002; 
+pub const PARSING_READERS_ERROR: u32 	= 0x90010001;
+pub const PARSING_RESPONSE_ERROR: u32 	= 0x90010002; 
 
 // Shared mode
 pub const SCARD_SHARE_EXCLUSIVE: u32 		= 0x0001;
@@ -194,13 +194,18 @@ pub mod pcsc {
 	}
 
 	impl DonkeyCard {
-	    pub fn new() -> DonkeyCard {
+	    pub fn new() -> Result<DonkeyCard, u32> {
 	    	unsafe {
 	    		let mut x: u32 = 0;
 	    		let ret = SCardEstablishContext(0x0000, ptr::null(), ptr::null(), &mut x);
 	    		println!("Establish context {}: {:X}", x, ret);
-	    		DonkeyCard {
-	    			context: x,
+				if ret == SCARD_S_SUCCESS {
+	    			return Ok(DonkeyCard {
+	    						context: x,
+	    					})
+	    		}
+	    		else {
+	    			return Err(ret)
 	    		}
 	    	}
 	    }
@@ -420,14 +425,19 @@ pub mod pcsc {
 	}
 
 	impl DonkeyCard {
-	    pub fn new() -> DonkeyCard {
+	    pub fn new() -> Result<DonkeyCard, u32> {
 	    	unsafe {
 	    		let mut x: i64 = 0;
 	    		let ret = SCardEstablishContext(0x0000, ptr::null(), ptr::null(), &mut x);
 	    		println!("Establish context {:X}: {:X}", x, ret);
-	    		DonkeyCard {
-	    			context: x,
-	    		}
+	    		if ret == SCARD_S_SUCCESS as i64 {
+		    		return Ok(DonkeyCard {
+		    				context: x,
+		    			})
+		    	}
+		    	else {
+		    		return Err(ret)
+		    	}
 	    	}
 	    }
 
@@ -576,7 +586,7 @@ mod tests {
 
 	#[test]
 	fn test_list_reader() {
-		let donkeycard = DonkeyCard::new();
+		let donkeycard = DonkeyCard::new().unwrap();
 		let readers = donkeycard.list_readers();
 		match readers {
 			Ok(names) => {
@@ -593,7 +603,7 @@ mod tests {
 
 	#[test]
 	fn test_connect_card(){
-		let donkeycard = DonkeyCard::new();
+		let donkeycard = DonkeyCard::new().unwrap();
 		let ref name = donkeycard.list_readers().unwrap()[0];
 		let card = DonkeyCardConnect::new(name);	
 		match card {
@@ -611,7 +621,7 @@ mod tests {
 
 	#[test]
 	fn test_status_card(){
-		let donkeycard = DonkeyCard::new();
+		let donkeycard = DonkeyCard::new().unwrap();
 		let ref name = donkeycard.list_readers().unwrap()[0];
 		let card = DonkeyCardConnect::new(name).unwrap();	
 		let command: Vec<u8> = vec![0x00, 0xA4, 0x08, 0x0C, 0x06, 0x3F, 0x00, 0xDF, 0x01, 0x40, 0x33];
@@ -644,7 +654,7 @@ mod tests {
 
 	#[test]
 	fn test_transmit_card(){
-		let donkeycard = DonkeyCard::new();
+		let donkeycard = DonkeyCard::new().unwrap();
 		let ref name = donkeycard.list_readers().unwrap()[0];
 		let card = DonkeyCardConnect::new(name).unwrap();	
 		let command: Vec<u8> = vec![0x00, 0xA4, 0x08, 0x0C, 0x06, 0x3F, 0x00, 0xDF, 0x01, 0x40, 0x33];
@@ -677,7 +687,7 @@ mod tests {
 
 	#[test]	
 	fn test_transmit_readdata_card() {
-		let donkeycard = DonkeyCard::new();
+		let donkeycard = DonkeyCard::new().unwrap();
 		let ref name = donkeycard.list_readers().unwrap()[0];
 		let card = DonkeyCardConnect::new(name).unwrap();	
 		let command_select: Vec<u8> = vec![0x00, 0xA4, 0x08, 0x0C, 0x06, 0x3F, 0x00, 0xDF, 0x01, 0x40, 0x31];

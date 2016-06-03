@@ -32,8 +32,22 @@ use eidonkey::EIdDonkeyCard;
 mod pin;
 use pin::*;
 
+pub const PARSING_REQUEST_ERROR: u32 	= 0x90020001; 
+pub const MISSING_PARAMETERS: u32 		= 0x90020002; 
+
 fn version() -> String {
 	"{\"result\":\"ok\",\"version\":\"0.1.0\"}".to_string()
+}
+
+fn error_response(error_code: u32) -> String {
+	error_response_with_msg(error_code, EIdDonkeyCard::get_error_message(error_code))
+}
+
+fn error_response_with_msg(error_code: u32, error_msg: String) -> String {
+	format!("{{\"result\":\"nok\",\
+			   \"error_code\":{},\
+			   \"error_msg\":\"{}\"\
+			 }}", error_code, error_msg)
 }
 
 fn identity(eid_card: EIdDonkeyCard) -> String {
@@ -82,10 +96,7 @@ fn identity(eid_card: EIdDonkeyCard) -> String {
 		 							base64::encode(&identity.identity),
 		 							base64::encode(&identity.signature)
 		 							),
-		Err(e) => format!("{{\"result\":\"nok\",\
-			     			\"error_code\":\"{}\",\
-			     			\"error_msg\":\"{}\"\
-			     			}}", e, EIdDonkeyCard::get_error_message(e))
+		Err(e) => error_response(e)
 	}
 }
 
@@ -107,10 +118,7 @@ fn address(eid_card: EIdDonkeyCard) -> String {
 			address.city,
 			base64::encode(&address.address),
 			base64::encode(&address.signature)),
-		Err(e) => format!("{{\"result\":\"nok\",\
-			     			\"error_code\":\"{}\",\
-			     			\"error_msg\":\"{}\"\
-			     			}}", e, EIdDonkeyCard::get_error_message(e))
+		Err(e) => error_response(e)
 	}	
 }
 
@@ -120,10 +128,7 @@ fn photo(eid_card: EIdDonkeyCard) -> String {
 	match photo_res {
 		Ok(photo) => format!("{{\"result\":\"ok\",\"photo\":\"{}\"}}", 
 	 							base64::encode(&photo)),
-		Err(e) => format!("{{\"result\":\"nok\",\
-			     			\"error_code\":\"{}\",\
-			     			\"error_msg\":\"{}\"\
-			     			}}", e,  EIdDonkeyCard::get_error_message(e))
+		Err(e) => error_response(e)
 	}	
 }
 
@@ -140,10 +145,7 @@ fn status(eid_card: EIdDonkeyCard) -> String {
 	 							status.reader_name,
 	 							status.protocol,
 	 							base64::encode(&status.atr)),
-		Err(e) => format!("{{\"result\":\"nok\",\
-			     			\"error_code\":\"{}\",\
-			     			\"error_msg\":\"{}\"\
-			     			}}", e,  EIdDonkeyCard::get_error_message(e))
+		Err(e) => error_response(e)
 	}	
 }
 
@@ -152,10 +154,7 @@ fn signature_auth(pin_code: String, eid_card: EIdDonkeyCard, params: &str) -> St
 	let vec_params : Vec<&str> = split_params.collect();
 
 	if vec_params.len() <= 1 {
-		return format!("{{\"result\":\"nok\",\
-			     			\"error_code\":\"{}\",\
-			     			\"error_msg\":\"{}\"\
-			     			}}", 501,  "Bad data format")
+		return error_response_with_msg(MISSING_PARAMETERS, "Missing Parameters".to_string())
 	}
 
 	println!("{:?}", vec_params[1]);
@@ -167,10 +166,7 @@ fn signature_auth(pin_code: String, eid_card: EIdDonkeyCard, params: &str) -> St
 	match signature_res {
 		Ok(signature) => format!("{{\"result\":\"ok\",\"signature\": \"{}\"}}", 
 	 							base64::encode(&signature)),
-		Err(e) => format!("{{\"result\":\"nok\",\
-			     			\"error_code\":\"{}\",\
-			     			\"error_msg\":\"{}\"\
-			     			}}", e,  EIdDonkeyCard::get_error_message(e))
+		Err(e) => error_response(e)
 	}	
 }
 
@@ -179,10 +175,7 @@ fn signature_sign(pin_code: String, eid_card: EIdDonkeyCard, params: &str) -> St
 	let vec_params : Vec<&str> = split_params.collect();
 
 	if vec_params.len() <= 1 {
-		return format!("{{\"result\":\"nok\",\
-			     			\"error_code\":\"{}\",\
-			     			\"error_msg\":\"{}\"\
-			     			}}", 501,  "Bad data format")
+		return error_response_with_msg(MISSING_PARAMETERS, "Missing Parameters".to_string())
 	}
 
 	println!("{:?}", vec_params[1]);
@@ -194,10 +187,7 @@ fn signature_sign(pin_code: String, eid_card: EIdDonkeyCard, params: &str) -> St
 	match signature_res {
 		Ok(signature) => format!("{{\"result\":\"ok\",\"signature\": \"{}\"}}", 
 	 							base64::encode(&signature)),
-		Err(e) => format!("{{\"result\":\"nok\",\
-			     			\"error_code\":\"{}\",\
-			     			\"error_msg\":\"{}\"\
-			     			}}", e,  EIdDonkeyCard::get_error_message(e))
+		Err(e) => error_response(e)
 	}	
 }
 
@@ -207,10 +197,7 @@ fn certificates_authentication(eid_card: EIdDonkeyCard) -> String {
 	match cert_res {
 		Ok(cert) => format!("{{\"result\":\"ok\",\"certificate\":\"{}\"}}", 
 	 							base64::encode(&cert)),
-		Err(e) => format!("{{\"result\":\"nok\",\
-			     			\"error_code\":\"{}\",\
-			     			\"error_msg\":\"{}\"\
-			     			}}", e,  EIdDonkeyCard::get_error_message(e))
+		Err(e) => error_response(e)
 	}	
 }
 
@@ -220,10 +207,7 @@ fn certificates_signing(eid_card: EIdDonkeyCard) -> String {
 	match cert_res {
 		Ok(cert) => format!("{{\"result\":\"ok\",\"certificate\":\"{}\"}}", 
 	 							base64::encode(&cert)),
-		Err(e) => format!("{{\"result\":\"nok\",\
-			     			\"error_code\":\"{}\",\
-			     			\"error_msg\":\"{}\"\
-			     			}}", e,  EIdDonkeyCard::get_error_message(e))
+		Err(e) => error_response(e)
 	}	
 }
 
@@ -233,10 +217,7 @@ fn certificates_rootca(eid_card: EIdDonkeyCard) -> String {
 	match cert_res {
 		Ok(cert) => format!("{{\"result\":\"ok\",\"certificate\":\"{}\"}}", 
 	 							base64::encode(&cert)),
-		Err(e) => format!("{{\"result\":\"nok\",\
-			     			\"error_code\":\"{}\",\
-			     			\"error_msg\":\"{}\"\
-			     			}}", e,  EIdDonkeyCard::get_error_message(e))
+		Err(e) => error_response(e)
 	}	
 }
 
@@ -246,10 +227,7 @@ fn certificates_ca(eid_card: EIdDonkeyCard) -> String {
 	match cert_res {
 		Ok(cert) => format!("{{\"result\":\"ok\",\"certificate\":\"{}\"}}", 
 	 							base64::encode(&cert)),
-		Err(e) => format!("{{\"result\":\"nok\",\
-			     			\"error_code\":\"{}\",\
-			     			\"error_msg\":\"{}\"\
-			     			}}", e,  EIdDonkeyCard::get_error_message(e))
+		Err(e) => error_response(e)
 	}	
 }
 
@@ -259,17 +237,14 @@ fn certificates_rrn(eid_card: EIdDonkeyCard) -> String {
 	match cert_res {
 		Ok(cert) => format!("{{\"result\":\"ok\",\"certificate\":\"{}\"}}", 
 	 							base64::encode(&cert)),
-		Err(e) => format!("{{\"result\":\"nok\",\
-			     			\"error_code\":\"{}\",\
-			     			\"error_msg\":\"{}\"\
-			     			}}", e,  EIdDonkeyCard::get_error_message(e))
+		Err(e) => error_response(e)
 	}	
 }
 
 fn connect_card() -> Result<EIdDonkeyCard, u32> {
 	let reader = EIdDonkeyCard::list_readers();
 	match reader {
-		Ok(readers) => Ok(EIdDonkeyCard::new(&readers[0])),
+		Ok(readers) =>  EIdDonkeyCard::new(&readers[0]),
 		Err(e) => Err(e)
 	}
 }
@@ -291,37 +266,25 @@ impl SenderHandler {
 		    "/identity" => { 
 		    	match connect_card() {
 			    	Ok(card) => Some(identity(card).into_bytes()),
-			    	Err(e) => Some(format!("{{\"result\":\"nok\",\
-				     			\"error_code\":\"{}\",\
-				     			\"error_msg\":\"{}\"\
-				     			}}", e,  EIdDonkeyCard::get_error_message(e)).into_bytes())
+			    	Err(e) => Some(error_response(e).into_bytes())
 		    	}
 		    },
 		    "/address" => {
 		    	match connect_card() {
 		    		Ok(card) => Some(address(card).into_bytes()),
-			    	Err(e) => Some(format!("{{\"result\":\"nok\",\
-				     			\"error_code\":\"{}\",\
-				     			\"error_msg\":\"{}\"\
-				     			}}", e, EIdDonkeyCard::get_error_message(e)).into_bytes())
+			    	Err(e) => Some(error_response(e).into_bytes())
 		    	}
 		    },
 		    "/photo" => {
 		    	match connect_card() {
 		    		Ok(card) => Some(photo(card).into_bytes()),
-			    	Err(e) => Some(format!("{{\"result\":\"nok\",\
-				     			\"error_code\":\"{}\",\
-				     			\"error_msg\":\"{}\"\
-				     			}}", e, EIdDonkeyCard::get_error_message(e)).into_bytes())
+			    	Err(e) => Some(error_response(e).into_bytes())
 		    	} 	
 		    },
 		    "/status" => {
 		    	match connect_card() {
 		    		Ok(card) => Some(status(card).into_bytes()),
-			    	Err(e) => Some(format!("{{\"result\":\"nok\",\
-				     			\"error_code\":\"{}\",\
-				     			\"error_msg\":\"{}\"\
-				     			}}", e, EIdDonkeyCard::get_error_message(e)).into_bytes())
+			    	Err(e) => Some(error_response(e).into_bytes())
 		    	}	    	
 		    },
 		    "/signature/authentication" => {
@@ -331,10 +294,7 @@ impl SenderHandler {
 		    			let pincode = self.receiver.lock().unwrap().recv().unwrap();
 		    			Some(signature_auth(pincode, card, params).into_bytes())
 		    		},
-			    	Err(e) => Some(format!("{{\"result\":\"nok\",\
-				     			\"error_code\":\"{}\",\
-				     			\"error_msg\":\"{}\"\
-				     			}}", e, EIdDonkeyCard::get_error_message(e)).into_bytes())
+			    	Err(e) => Some(error_response(e).into_bytes())
 		    	}
 		    },
 		    "/signature/signing" => {
@@ -344,55 +304,37 @@ impl SenderHandler {
 		    			let pincode = self.receiver.lock().unwrap().recv().unwrap();
 		    			Some(signature_sign(pincode, card, params).into_bytes())
 		    		},
-			    	Err(e) => Some(format!("{{\"result\":\"nok\",\
-				     			\"error_code\":\"{}\",\
-				     			\"error_msg\":\"{}\"\
-				     			}}", e, EIdDonkeyCard::get_error_message(e)).into_bytes())
+			    	Err(e) => Some(error_response(e).into_bytes())
 		    	}
 		    },
 		    "/certificates/authentication" => {
 		    	match connect_card() {
 		    		Ok(card) => Some(certificates_authentication(card).into_bytes()),
-			    	Err(e) => Some(format!("{{\"result\":\"nok\",\
-				     			\"error_code\":\"{}\",\
-				     			\"error_msg\":\"{}\"\
-				     			}}", e, EIdDonkeyCard::get_error_message(e)).into_bytes())
+			    	Err(e) => Some(error_response(e).into_bytes())
 		    	}
 		    },
 		    "/certificates/signing" => {
 		    	match connect_card() {
 		    		Ok(card) => Some(certificates_signing(card).into_bytes()),
-			    	Err(e) => Some(format!("{{\"result\":\"nok\",\
-				     			\"error_code\":\"{}\",\
-				     			\"error_msg\":\"{}\"\
-				     			}}", e, EIdDonkeyCard::get_error_message(e)).into_bytes())
+			    	Err(e) => Some(error_response(e).into_bytes())
 		    	}
 		    },
 		    "/certificates/rootca" => {
 		    	match connect_card() {
 		    		Ok(card) => Some(certificates_rootca(card).into_bytes()),
-			    	Err(e) => Some(format!("{{\"result\":\"nok\",\
-				     			\"error_code\":\"{}\",\
-				     			\"error_msg\":\"{}\"\
-				     			}}", e, EIdDonkeyCard::get_error_message(e)).into_bytes())
+			    	Err(e) => Some(error_response(e).into_bytes())
 		    	}
 		    },
 		    "/certificates/ca" => {
 		    	match connect_card() {
 		    		Ok(card) => Some(certificates_ca(card).into_bytes()),
-			    	Err(e) => Some(format!("{{\"result\":\"nok\",\
-				     			\"error_code\":\"{}\",\
-				     			\"error_msg\":\"{}\"\
-				     			}}", e, EIdDonkeyCard::get_error_message(e)).into_bytes())
+			    	Err(e) => Some(error_response(e).into_bytes())
 		    	}
 		    },
 		    "/certificates/rrn" => {
 		    	match connect_card() {
 		    		Ok(card) => Some(certificates_rrn(card).into_bytes()),
-			    	Err(e) => Some(format!("{{\"result\":\"nok\",\
-				     			\"error_code\":\"{}\",\
-				     			\"error_msg\":\"{}\"\
-				     			}}", e, EIdDonkeyCard::get_error_message(e)).into_bytes())
+			    	Err(e) => Some(error_response(e).into_bytes())
 		    	}
 		    },
 		    _ => None,
