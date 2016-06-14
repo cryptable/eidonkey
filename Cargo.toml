@@ -14,9 +14,9 @@ cmake = "0.1"
 hyper = "0.9"
 mime = "0.2"
 getopts = "0.2"
-openssl = "0.7"
 serde_json = "0.7"
 data-encoding = "1.1.2"
+openssl= "0.7"
 libc = "0.2"
 lazy_static = "0.2"
 
@@ -24,3 +24,6 @@ lazy_static = "0.2"
 default = [ "tlsv1_2" ]
 #mock_pincode = []
 tlsv1_2 = [ "openssl/tlsv1_2" ]
+
+[replace]
+"openssl:0.7.13" = { path = "../rust-openssl/openssl" }

@@ -250,6 +250,8 @@ fn connect_card() -> Result<EIdDonkeyCard, u32> {
 }
 
 // Library of core handler 
+const SERVER_CA_CERTIFICATE_FILE: &'static str = "cacert.crt";
+const SERVER_CA_PRIVATE_KEY_FILE: &'static str = "cacert.key";
 const SERVER_CERTIFICATE_FILE: &'static str = "cert.crt";
 const SERVER_PRIVATE_KEY_FILE: &'static str = "cert.key";
 
@@ -410,7 +412,28 @@ fn print_usage(program: &str, opts: Options) {
 /// - cert.pem : self-signed certificate
 /// - cert.key : unprotected private key
 fn generate_self_signed_certificate() {
-	let gen = X509Generator::new()
+	
+	// Create CA certificate
+	let ca_gen = X509Generator::new()
+		.set_bitlength(2048)
+		.set_valid_period(365*10)
+		.add_name("CN".to_owned(), "My eidonkey CA".to_owned())
+		.set_sign_hash(Type::SHA256)
+		.add_extension(Extension::KeyUsage(vec![KeyUsageOption::KeyCertSign,KeyUsageOption::CRLSign]))
+		.aadd_extension(OtherNid(Nid::BasicConstraints,"critical,CA:TRUE".to_owned()));
+
+	let (ca, ca_pkey) = gen.generate().unwrap();
+
+	let ca_path = SERVER_CA_CERTIFICATE_FILE;
+	let mut file = File::create(ca_path).unwrap();
+	assert!(ca.write_pem(&mut file).is_ok());
+
+	let ca_pkey_path = SERVER_CA_PRIVATE_KEY_FILE;
+	let mut file = File::create(ca_pkey_path).unwrap();
+	assert!(ca_pkey.write_pem(&mut file).is_ok());
+
+	// local host generator
+	let cert_gen = X509Generator::new()
 		.set_bitlength(2048)
 		.set_valid_period(365*10)
 		.add_name("CN".to_owned(), "localhost".to_owned())
@@ -418,7 +441,7 @@ fn generate_self_signed_certificate() {
 		.add_extension(Extension::KeyUsage(vec![KeyUsageOption::DigitalSignature,KeyUsageOption::KeyEncipherment,KeyUsageOption::DataEncipherment]))
 		.add_extension(Extension::ExtKeyUsage(vec![ExtKeyUsageOption::ServerAuth]));
 
-	let (cert, pkey) = gen.generate().unwrap();
+	let (cert, pkey) = cert_gen.ca_generate(ca, ca_pkey).unwrap();
 
 	let cert_path = SERVER_CERTIFICATE_FILE;
 	let mut file = File::create(cert_path).unwrap();
