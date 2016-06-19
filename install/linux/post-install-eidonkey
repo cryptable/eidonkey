@@ -1,0 +1,31 @@
+#!/bin/bash -x
+
+# Post Installation
+./eidonkey --gencert
+
+# Chrome/linux browser keychain
+sudo openssl asn1parse -in cacert.crt -inform PEM -out cacert.der
+# Remove your old CA Certificate
+sudo -u $1 certutil -D -n "My eidonkey CA" -d sql:"${HOME}/.pki/nssdb"
+# Add your old CA Certificate
+sudo -u $1 certutil -A -n "My eidonkey CA" -t Cc,, -i ./cacert.crt -d sql:"${HOME}/.pki/nssdb"
+
+# Add to Firefox keystore
+# package libnss3-tools has to be installed
+for dir in ${HOME}/.mozilla/firefox/*
+do
+	if [ -d ${dir} ]
+	then
+		if [ ${dir: -8} == ".default" ]
+		then
+			# ignore: remove certificate gives error SEC_ERROR_LEGACY_DATABASE, when certificate not found
+			sudo -u $1 certutil -D -n "My eidonkey CA" -d "${dir}"
+			sudo -u $1 certutil -A -n "My eidonkey CA" -t Cc,, -i cacert.crt -d "${dir}"
+		fi
+	fi
+done
+
+# Remove the der version of the old CA Certificate
+sudo rm -f cacert.der
+sudo rm -f cert.der
+
