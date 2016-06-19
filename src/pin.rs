@@ -5,10 +5,10 @@ pub const PINCODE_NOT_ENTERED: u32		= 1;
 pub const PINCODE_BUFFER_TOO_SMALL:u32	= 2;
 pub const PINCODE_BUFFER_UNDEFINED:u32	= 3;
 
-pub const PINCODE_UTF8_DECODE_ERROR:u32	= 101;
+pub const PINCODE_UTF8_DECODE_ERROR:u32	= 101;	
 
 #[cfg(not(feature = "mock_pincode"))]
-#[link(name = "pincode")]
+#[link(name = "pincode", kind="static")]
 extern {
 	fn getPINCode(nbrRetries: u32, pincode: *mut u8, len: *mut usize) -> u32;
 	fn initPINCode();

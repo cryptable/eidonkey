@@ -19,6 +19,7 @@ use hyper::status::StatusCode;
 use hyper::net::Openssl;
 
 use openssl::ssl::{SslMethod, SslContext};
+use openssl::nid::Nid;
 use openssl::x509::{X509Generator, X509FileType};
 use openssl::x509::extension::{Extension, KeyUsageOption, ExtKeyUsageOption};
 use openssl::crypto::hash::Type;
@@ -389,9 +390,14 @@ impl Handler for SenderHandler {
 }
 
 // Thighten the SSL server protocols: TLS1.2 only
+// AES256-GCM-SHA384:AES256-SHA256:AES128-GCM-SHA256:AES128-GCM-SHA256
+// ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-SHA384:ECDHE-RSA-AES128-SHA256
+// AES256-GCM-SHA384:AES256-SHA256:AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-SHA384:ECDHE-RSA-AES256-SHA384:ECDHE-ECDSA-AES128-SHA256:ECDHE-RSA-AES128-SHA256
+// TLS 1.1
+// AES128-SHA:AES256-SHA:DH-RSA-AES128-SHA:DH-RSA-AES256-SHA
 fn start_server(http_req: Mutex<SyncSender<u32>>, http_resp: Mutex<Receiver<String>>) {
-	let mut ssl_ctx = SslContext::new(SslMethod::Tlsv1_2).unwrap();
-	ssl_ctx.set_cipher_list("AES256-GCM-SHA384:AES256-SHA256:AES128-GCM-SHA256:AES128-SHA256");
+	let mut ssl_ctx = SslContext::new(SslMethod::Tlsv1_1).unwrap();
+	ssl_ctx.set_cipher_list("AES128-SHA:AES256-SHA:DH-RSA-AES128-SHA:DH-RSA-AES256-SHA");
     ssl_ctx.set_certificate_file(SERVER_CERTIFICATE_FILE, X509FileType::PEM).unwrap();
     ssl_ctx.set_private_key_file(SERVER_PRIVATE_KEY_FILE, X509FileType::PEM).unwrap();
     let ssl = Openssl { context: Arc::new(ssl_ctx) };
@@ -420,17 +426,13 @@ fn generate_self_signed_certificate() {
 		.add_name("CN".to_owned(), "My eidonkey CA".to_owned())
 		.set_sign_hash(Type::SHA256)
 		.add_extension(Extension::KeyUsage(vec![KeyUsageOption::KeyCertSign,KeyUsageOption::CRLSign]))
-		.aadd_extension(OtherNid(Nid::BasicConstraints,"critical,CA:TRUE".to_owned()));
+		.add_extension(Extension::OtherNid(Nid::BasicConstraints,"critical,CA:TRUE".to_owned()));
 
-	let (ca, ca_pkey) = gen.generate().unwrap();
+	let (ca, ca_pkey) = ca_gen.generate().unwrap();
 
 	let ca_path = SERVER_CA_CERTIFICATE_FILE;
 	let mut file = File::create(ca_path).unwrap();
 	assert!(ca.write_pem(&mut file).is_ok());
-
-	let ca_pkey_path = SERVER_CA_PRIVATE_KEY_FILE;
-	let mut file = File::create(ca_pkey_path).unwrap();
-	assert!(ca_pkey.write_pem(&mut file).is_ok());
 
 	// local host generator
 	let cert_gen = X509Generator::new()
@@ -438,10 +440,11 @@ fn generate_self_signed_certificate() {
 		.set_valid_period(365*10)
 		.add_name("CN".to_owned(), "localhost".to_owned())
 		.set_sign_hash(Type::SHA256)
+		.set_ca(&ca, &ca_pkey)
 		.add_extension(Extension::KeyUsage(vec![KeyUsageOption::DigitalSignature,KeyUsageOption::KeyEncipherment,KeyUsageOption::DataEncipherment]))
 		.add_extension(Extension::ExtKeyUsage(vec![ExtKeyUsageOption::ServerAuth]));
 
-	let (cert, pkey) = cert_gen.ca_generate(ca, ca_pkey).unwrap();
+	let (cert, pkey) = cert_gen.generate().unwrap();
 
 	let cert_path = SERVER_CERTIFICATE_FILE;
 	let mut file = File::create(cert_path).unwrap();

@@ -20,10 +20,10 @@ openssl= "0.7"
 libc = "0.2"
 lazy_static = "0.2"
 
-[features]
-default = [ "tlsv1_2" ]
-#mock_pincode = []
-tlsv1_2 = [ "openssl/tlsv1_2" ]
-
 [replace]
 "openssl:0.7.13" = { path = "../rust-openssl/openssl" }
+
+[features]
+default = [ "tlsv1_1" ]
+#mock_pincode = []
+tlsv1_1 = [ "openssl/tlsv1_1" ]
