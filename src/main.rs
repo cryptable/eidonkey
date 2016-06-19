@@ -71,11 +71,11 @@ fn identity(eid_card: EIdDonkeyCard) -> String {
 								 		\"sex\":\"{}\",\
 							 			\"noble_condition\":\"{}\",\
 							 			\"document_type\":\"{}\",\
-								 		\"special_status\":\"{}\",
+								 		\"special_status\":\"{}\",\
 								 		\"hash_photo\":\"{}\"\
-								 	}},
-									\"identity_raw\":\"{}\",
-									\"signature\":\"{}\"		 	
+								 	}},\
+									\"identity_raw\":\"{}\",\
+									\"signature\":\"{}\"\
 							 	}}", 
 		 							identity.card_number,
 		 							base64::encode(&identity.chip_number), 
@@ -137,7 +137,7 @@ fn status(eid_card: EIdDonkeyCard) -> String {
 	let status_res = eid_card.get_status();
 
 	match status_res {
-		Ok(status) => format!("{{\"result\":\"ok\",\"status\":
+		Ok(status) => format!("{{\"result\":\"ok\",\"status\":\
 									{{\"reader_name\":\"{}\",\
 										\"protocol\":\"{}\",\
 										\"atr\":\"{}\"\
@@ -401,7 +401,7 @@ fn start_server(http_req: Mutex<SyncSender<u32>>, http_resp: Mutex<Receiver<Stri
     ssl_ctx.set_certificate_file(SERVER_CERTIFICATE_FILE, X509FileType::PEM).unwrap();
     ssl_ctx.set_private_key_file(SERVER_PRIVATE_KEY_FILE, X509FileType::PEM).unwrap();
     let ssl = Openssl { context: Arc::new(ssl_ctx) };
-	Server::https("127.0.0.1:8443", ssl).unwrap().handle(SenderHandler {
+	Server::https("127.0.0.1:10443", ssl).unwrap().handle(SenderHandler {
 		sender: http_req,
 		receiver: http_resp
 	}).unwrap();

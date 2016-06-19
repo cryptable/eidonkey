@@ -311,8 +311,6 @@ impl EIdDonkeyCard {
 		let id_res = self.read_file(IDENTITY_FILE_ID);
 		match id_res {
 			Ok(id) => {
-				let mut f = File::create("identity.bin").unwrap();
-				f.write_all(&id);
 				let id_sig_res = self.read_file(IDENTITY_SIGN_FILE_ID);
 				match id_sig_res {
 					Ok(id_sig) => {
