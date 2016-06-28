@@ -1,0 +1,46 @@
+#!/bin/bash -x
+
+# This shell script must be run as sudo
+# Major security issue installing root CA in truststore of Mac OS X
+# Have to find another solution
+
+# Apple KeyChain
+openssl asn1parse -in cacert.crt -inform PEM -out cacert.der
+# Remove your old CA Certificate
+security delete-certificate -c "My eidonkey CA" /Library/Keychains/System.keychain
+# Add your old CA Certificate
+security add-trusted-cert -d -r trustRoot -k "/Library/Keychains/System.keychain" cacert.der
+# Remove the der version of the old CA Certificate
+sudo rm -f cacert.der
+sudo rm -f cert.der
+
+# Add to Firefox keystore
+# download nss sources with nsrp (version 3.23)
+# >cd nss-3.23/NSS
+# >make nss_build_all
+# copy files for certutil:
+# >cp ./nspr/LICENSE ../eidonkey/install/macosx/firefox
+# >cp ./nspr/Darwin15.5.0_DBG.OBJ/lib/ds/libplds4.dylib ../eidonkey/install/macosx/firefox
+# >cp ./nspr/Darwin15.5.0_DBG.OBJ/lib/libc/src/libplc4.dylib ../eidonkey/install/macosx/firefox
+# >cp ./nspr/Darwin15.5.0_DBG.OBJ/pr/src/libnspr4.dylib ../eidonkey/install/macosx/firefox
+# >cp ./nss/COPYING ../eidonkey/install/macosx/firefox
+# >cp ./nss/lib/ssl/Darwin15.5.0_DBG.OBJ/libssl3.dylib ../eidonkey/install/macosx/firefox
+# >cp ./nss/lib/smime/Darwin15.5.0_DBG.OBJ/libsmime3.dylib ../eidonkey/install/macosx/firefox
+# >cp ./nss/lib/nss/Darwin15.5.0_DBG.OBJ/libnss3.dylib ../eidonkey/install/macosx/firefox
+# >cp ./nss/lib/util/Darwin15.5.0_DBG.OBJ/libnssutil3.dylib ../eidonkey/install/macosx/firefox
+# >cp ./nss/cmd/certutil/Darwin15.5.0_DBG.OBJ/certutil ../eidonkey/install/macosx/firefox
+# >cp ./nss/lib/softoken/Darwin15.5.0_DBG.OBJ/libsoftokn3.dylib ../eidonkey/install/macosx/firefox
+# >cp ./nss/lib/softoken/legacydb/Darwin15.5.0_DBG.OBJ/libnssdbm3.dylib ../eidonkey/install/macosx/firefox
+# >cp ./nss/lib/freebl/Darwin15.5.0_DBG.OBJ/Darwin_SINGLE_SHLIB/libfreebl3.dylib ../eidonkey/install/macosx/firefox
+
+cd firefox
+for dir in ~/Library/Application\ Support/Firefox/Profiles/*
+do
+	if [ -d "${dir}" ]
+	then
+		# ignore: remove certificate gives error SEC_ERROR_LEGACY_DATABASE, when certificate not found
+		./certutil -D -n "My eidonkey CA" -d "${dir}"
+		./certutil -A -n "My eidonkey CA" -t Cc,, -i ../cacert.crt -d "${dir}"
+	fi
+done
+cd ..

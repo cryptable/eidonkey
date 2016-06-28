@@ -7,6 +7,7 @@ extern crate eidonkey;
 use std::io::Write;
 use std::env;
 use std::fs::File;
+use std::process::Command;
 use std::sync::{Arc, Mutex};
 use std::sync::mpsc::sync_channel;
 use std::sync::mpsc::{SyncSender, Receiver};
@@ -20,9 +21,10 @@ use hyper::net::Openssl;
 
 use openssl::ssl::{SslMethod, SslContext};
 use openssl::nid::Nid;
-use openssl::x509::{X509Generator, X509FileType};
+use openssl::x509::{X509Generator, X509FileType, X509};
 use openssl::x509::extension::{Extension, KeyUsageOption, ExtKeyUsageOption};
 use openssl::crypto::hash::Type;
+use openssl::crypto::pkey::PKey;
 
 use getopts::Options;
 
@@ -395,10 +397,12 @@ impl Handler for SenderHandler {
 // TLS 1.1
 // AES128-SHA:AES256-SHA:DH-RSA-AES128-SHA:DH-RSA-AES256-SHA
 fn start_server(http_req: Mutex<SyncSender<u32>>, http_resp: Mutex<Receiver<String>>) {
+	let (cert, pkey) = generate_signed_certificate();
+
 	let mut ssl_ctx = SslContext::new(SslMethod::Tlsv1_1).unwrap();
 	ssl_ctx.set_cipher_list("AES128-SHA:AES256-SHA:DH-RSA-AES128-SHA:DH-RSA-AES256-SHA");
-    ssl_ctx.set_certificate_file(SERVER_CERTIFICATE_FILE, X509FileType::PEM).unwrap();
-    ssl_ctx.set_private_key_file(SERVER_PRIVATE_KEY_FILE, X509FileType::PEM).unwrap();
+    ssl_ctx.set_certificate(&cert);
+    ssl_ctx.set_private_key(&pkey).unwrap();
     let ssl = Openssl { context: Arc::new(ssl_ctx) };
 	Server::https("127.0.0.1:10443", ssl).unwrap().handle(SenderHandler {
 		sender: http_req,
@@ -412,11 +416,17 @@ fn print_usage(program: &str, opts: Options) {
 	print!("{}", opts.usage(&brief));
 }
 
+fn register_eidonkey() {
+	let output = Command::new("bash")
+	                     .arg("./post-startup-eidonkey")
+	                     .output()
+	                     .unwrap_or_else(|e| { panic!("failed to execute process: {}", e) });
+}
+
 /// Generate self-signed certificate command
 /// It creates 2 files in the current directory:
 /// - cert.pem : self-signed certificate
-/// - cert.key : unprotected private key
-fn generate_self_signed_certificate() {
+fn generate_signed_certificate<'ctx>() -> (X509<'ctx>, PKey) {
 	
 	// Create CA certificate
 	let ca_gen = X509Generator::new()
@@ -449,9 +459,9 @@ fn generate_self_signed_certificate() {
 	let mut file = File::create(cert_path).unwrap();
 	assert!(cert.write_pem(&mut file).is_ok());
 
-	let pkey_path = SERVER_PRIVATE_KEY_FILE;
-	let mut file = File::create(pkey_path).unwrap();
-	assert!(pkey.write_pem(&mut file).is_ok());
+	register_eidonkey();
+
+	(cert, pkey)
 }
 
 fn main() {
@@ -459,17 +469,11 @@ fn main() {
 	let program = args[0].clone();
 
 	let mut opts = Options::new();
-	opts.optflag("g", "gencert", "Generate self-signed certificate");
 	opts.optflag("h", "help", "print this help menu");
 	let matches = opts.parse(&args[1..]).unwrap();
 
 	if matches.opt_present("h") {
 		print_usage(&program, opts);
-		return;
-	}
-
-	if matches.opt_present("g") {
-		generate_self_signed_certificate();
 		return;
 	}
 

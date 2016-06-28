@@ -1,5 +1,6 @@
 #!/bin/bash -x
 
+<<<<<<< HEAD
 # Post Installation
 # Generate SSL key pairs for the service 
 eidonkey --gencert
@@ -14,31 +15,16 @@ sudo security add-trusted-cert -d -r trustRoot -k "/Library/Keychains/System.key
 # Remove the der version of the old CA Certificate
 sudo rm -f cacert.der
 sudo rm -f cert.der
+=======
+# Run as sudo during installation
+>>>>>>> 45577c8d84a69259a180013698287abe3b0dc4c3
 
 # Open personal FW to allow connections to the service
 # Add the application to the Application firewall of Apple 
-sudo /usr/libexec/ApplicationFirewall/socketfilterfw --add $HOME/Applications/eidonkey
-sudo /usr/libexec/ApplicationFirewall/socketfilterfw --unblockapp $HOME/Applications/eidonkey
+/usr/libexec/ApplicationFirewall/socketfilterfw --add $HOME/Applications/eidonkey
+/usr/libexec/ApplicationFirewall/socketfilterfw --unblockapp $HOME/Applications/eidonkey
 
-# Add to Firefox keystore
-# download nss sources with nsrp (version 3.23)
-# >cd nss-3.23/NSS
-# >make nss_build_all
-# copy files for certutil:
-# >cp ./nspr/LICENSE ../eidonkey/install/macosx/firefox
-# >cp ./nspr/Darwin15.5.0_DBG.OBJ/lib/ds/libplds4.dylib ../eidonkey/install/macosx/firefox
-# >cp ./nspr/Darwin15.5.0_DBG.OBJ/lib/libc/src/libplc4.dylib ../eidonkey/install/macosx/firefox
-# >cp ./nspr/Darwin15.5.0_DBG.OBJ/pr/src/libnspr4.dylib ../eidonkey/install/macosx/firefox
-# >cp ./nss/COPYING ../eidonkey/install/macosx/firefox
-# >cp ./nss/lib/ssl/Darwin15.5.0_DBG.OBJ/libssl3.dylib ../eidonkey/install/macosx/firefox
-# >cp ./nss/lib/smime/Darwin15.5.0_DBG.OBJ/libsmime3.dylib ../eidonkey/install/macosx/firefox
-# >cp ./nss/lib/nss/Darwin15.5.0_DBG.OBJ/libnss3.dylib ../eidonkey/install/macosx/firefox
-# >cp ./nss/lib/util/Darwin15.5.0_DBG.OBJ/libnssutil3.dylib ../eidonkey/install/macosx/firefox
-# >cp ./nss/cmd/certutil/Darwin15.5.0_DBG.OBJ/certutil ../eidonkey/install/macosx/firefox
-# >cp ./nss/lib/softoken/Darwin15.5.0_DBG.OBJ/libsoftokn3.dylib ../eidonkey/install/macosx/firefox
-# >cp ./nss/lib/softoken/legacydb/Darwin15.5.0_DBG.OBJ/libnssdbm3.dylib ../eidonkey/install/macosx/firefox
-# >cp ./nss/lib/freebl/Darwin15.5.0_DBG.OBJ/Darwin_SINGLE_SHLIB/libfreebl3.dylib ../eidonkey/install/macosx/firefox
-
+<<<<<<< HEAD
 # Add the certificates to the Firefox truststore
 cd firefox
 for dir in ~/Library/Application\ Support/Firefox/Profiles/*
@@ -65,3 +51,6 @@ chmod 400 cert.key
 chmod 444 cert.crt
 chmod 444 cacert.crt
 chmod 500 post-install-eidonkey
+=======
+chmod u+s post-startup-eidonkey
+>>>>>>> 45577c8d84a69259a180013698287abe3b0dc4c3
