@@ -6,7 +6,8 @@
 #include <wx/app.h>
 #include <wx/textdlg.h>
 
-wxDEFINE_EVENT(MY_DIALOGS_TYPE, wxCommandEvent);
+wxDEFINE_EVENT(PINCODE_AUTH_DIALOG, wxCommandEvent);
+wxDEFINE_EVENT(PINCODE_SIGN_DIALOG, wxCommandEvent);
 
 class MyApp : public wxApp
 {
@@ -22,15 +23,33 @@ public:
 	    if ( !wxApp::OnInit() )
 	        return false;
 
-	    Bind(MY_DIALOGS_TYPE, &MyApp::OnPINCode, this, wxID_ANY);
+	    Bind(PINCODE_AUTH_DIALOG, &MyApp::OnAuthPINCode, this, wxID_ANY);
+	    Bind(PINCODE_SIGN_DIALOG, &MyApp::OnSignPINCode, this, wxID_ANY);
 	}
 
-	void OnPINCode(wxCommandEvent& WXUNUSED(event)) {
+	void OnAuthPINCode(wxCommandEvent& WXUNUSED(event)) {
 		pinCode.Clear();
 
 		wxWindow* parent = wxGetActiveWindow();
 
-		PinCodeDlg pinCodeDlg(parent);
+		PinCodeDlg pinCodeDlg(parent, wxID_ANY, wxT("Authentication PIN"));
+		if (pinCodeDlg.ShowModal() == wxID_OK)
+		{
+			pinCode = pinCodeDlg.GetPassword();
+
+		}
+		if (parent) {
+			parent->SetFocus();
+		}
+		ExitMainLoop();
+	}
+
+	void OnSignPINCode(wxCommandEvent& WXUNUSED(event)) {
+		pinCode.Clear();
+
+		wxWindow* parent = wxGetActiveWindow();
+
+		PinCodeDlg pinCodeDlg(parent, wxID_ANY, wxT("Signing PIN"));
 		if (pinCodeDlg.ShowModal() == wxID_OK)
 		{
 			pinCode = pinCodeDlg.GetPassword();
@@ -53,7 +72,7 @@ void initPINCode(void) {
 	wxGetApp().CallOnInit();
 }
 
-unsigned long getPINCode(unsigned int nbrRetries, char *pincode, unsigned long *len) {
+unsigned long getAuthenticationPINCode(unsigned int nbrRetries, char *pincode, unsigned long *len) {
 	wxString wx_pincode= "";
 
 	if ((*len == 0)||(pincode == NULL)) {
@@ -62,7 +81,35 @@ unsigned long getPINCode(unsigned int nbrRetries, char *pincode, unsigned long *
 	memset((void *)pincode, 0, *len);
 
 	// Call PIN Dialog
-	wxCommandEvent event(MY_DIALOGS_TYPE);
+	wxCommandEvent event(PINCODE_AUTH_DIALOG);
+	wxPostEvent(&(wxGetApp()), event);
+ 	wxGetApp().MainLoop();
+
+	wx_pincode = wxGetApp().GetPinCode();
+
+	if (*len < wx_pincode.length()) {
+		return PINCODE_BUFFER_TOO_SMALL;
+	}
+	if (wx_pincode.length() == 0) {
+		return PINCODE_NOT_ENTERED;
+	}
+
+	*len = wx_pincode.length();
+	strncpy(pincode, (const char *)wx_pincode.mb_str(), *len);
+
+	return PINCODE_OK;
+}
+
+unsigned long getSigningPINCode(unsigned int nbrRetries, char *pincode, unsigned long *len) {
+	wxString wx_pincode= "";
+
+	if ((*len == 0)||(pincode == NULL)) {
+		return PINCODE_BUFFER_UNDEFINED;
+	}
+	memset((void *)pincode, 0, *len);
+
+	// Call PIN Dialog
+	wxCommandEvent event(PINCODE_SIGN_DIALOG);
 	wxPostEvent(&(wxGetApp()), event);
  	wxGetApp().MainLoop();
 

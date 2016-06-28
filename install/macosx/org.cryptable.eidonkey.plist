@@ -5,9 +5,9 @@
 		<key>Label</key>
 		<string>org.cryptable.eidonkey</string>
 		<key>Program</key>
-		<string>/Users/david/Applications/eidonkey/eidonkey</string>
+		<string>/opt/eidonkey/eidonkey</string>
 		<key>WorkingDirectory</key>
-		<string>/Users/david/Applications/eidonkey/</string>
+		<string>/opt/eidonkey/</string>
 		<key>RunAtLoad</key>
 		<true/>
 	</dict>

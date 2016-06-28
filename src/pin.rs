@@ -10,7 +10,8 @@ pub const PINCODE_UTF8_DECODE_ERROR:u32	= 101;
 #[cfg(not(feature = "mock_pincode"))]
 #[link(name = "pincode", kind="static")]
 extern {
-	fn getPINCode(nbrRetries: u32, pincode: *mut u8, len: *mut usize) -> u32;
+	fn getAuthenticationPINCode(nbrRetries: u32, pincode: *mut u8, len: *mut usize) -> u32;
+	fn getSigningPINCode(nbrRetries: u32, pincode: *mut u8, len: *mut usize) -> u32;
 	fn initPINCode();
 	fn closePINCode();
 }
@@ -49,13 +50,35 @@ pub fn close_pincode() {
 	}
 }
 
-pub fn get_pincode(nbr_retries: u32) -> Result<String, u32> {
+pub fn get_pincode_auth(nbr_retries: u32) -> Result<String, u32> {
 	unsafe {
 
 		let mut pincode: Vec<u8> = vec![0; 16];
 		let mut pincode_lg: usize = 16;
 		println!("pin: request PIN code");
-		let ret = getPINCode( nbr_retries, pincode.as_mut_ptr(), &mut pincode_lg);
+		let ret = getAuthenticationPINCode( nbr_retries, pincode.as_mut_ptr(), &mut pincode_lg);
+
+		println!("pin: PIN code return {}", ret);
+		if ret == PINCODE_OK {
+			pincode.truncate(pincode_lg);
+			match String::from_utf8(pincode) {
+				Ok(p) => Ok(p),
+				Err(_) => Err(PINCODE_UTF8_DECODE_ERROR)
+			}
+		}
+		else {
+			Err(ret)
+		}
+	}
+}
+
+pub fn get_pincode_sign(nbr_retries: u32) -> Result<String, u32> {
+	unsafe {
+
+		let mut pincode: Vec<u8> = vec![0; 16];
+		let mut pincode_lg: usize = 16;
+		println!("pin: request PIN code");
+		let ret = getSigningPINCode( nbr_retries, pincode.as_mut_ptr(), &mut pincode_lg);
 
 		println!("pin: PIN code return {}", ret);
 		if ret == PINCODE_OK {

@@ -252,7 +252,6 @@ fn connect_card() -> Result<EIdDonkeyCard, u32> {
 
 // Library of core handler 
 const SERVER_CA_CERTIFICATE_FILE: &'static str = "cacert.crt";
-const SERVER_CA_PRIVATE_KEY_FILE: &'static str = "cacert.key";
 const SERVER_CERTIFICATE_FILE: &'static str = "cert.crt";
 const SERVER_PRIVATE_KEY_FILE: &'static str = "cert.key";
 
@@ -303,7 +302,7 @@ impl SenderHandler {
 		    "/signature/signing" => {
 		    	match connect_card() {
 		    		Ok(card) => {
-		    			self.sender.lock().unwrap().send(0).unwrap();
+		    			self.sender.lock().unwrap().send(10).unwrap();
 		    			let pincode = self.receiver.lock().unwrap().recv().unwrap();
 		    			Some(signature_sign(pincode, card, params).into_bytes())
 		    		},
@@ -485,10 +484,16 @@ fn main() {
 	init_pincode();
 	
 	loop {
+		let pin_code: String;
 		println!("Waiting for PINcode");
 		let req = req_rx.recv().unwrap();
 		println!("Request PIN code {}", req);
-		let pin_code = get_pincode(0).unwrap();
+		if req < 10 {
+			pin_code = get_pincode_auth(req).unwrap();
+		}
+		else {
+			pin_code = get_pincode_sign(req - 10).unwrap();
+		}
 		println!("Sending PIN code {}", pin_code);
 		resp_tx.send(pin_code).unwrap();
 	}
