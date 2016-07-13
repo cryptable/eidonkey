@@ -43,3 +43,6 @@ Cargo.lock
 # Eclipse
 .project
 .settings
+
+# Intellij
+.idea
