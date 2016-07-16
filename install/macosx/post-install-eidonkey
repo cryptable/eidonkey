@@ -1,56 +1,22 @@
 #!/bin/bash -x
 
-<<<<<<< HEAD
-# Post Installation
-# Generate SSL key pairs for the service 
-eidonkey --gencert
-
-# Add certificate to the truststore of the OS
-# Apple KeyChain
-sudo openssl asn1parse -in cacert.crt -inform PEM -out cacert.der
-# Remove your old CA Certificate
-sudo security delete-certificate -c "My eidonkey CA" /Library/Keychains/System.keychain
-# Add your old CA Certificate
-sudo security add-trusted-cert -d -r trustRoot -k "/Library/Keychains/System.keychain" cacert.der
-# Remove the der version of the old CA Certificate
-sudo rm -f cacert.der
-sudo rm -f cert.der
-=======
 # Run as sudo during installation
->>>>>>> 45577c8d84a69259a180013698287abe3b0dc4c3
-
 # Open personal FW to allow connections to the service
 # Add the application to the Application firewall of Apple 
 /usr/libexec/ApplicationFirewall/socketfilterfw --add $HOME/Applications/eidonkey
 /usr/libexec/ApplicationFirewall/socketfilterfw --unblockapp $HOME/Applications/eidonkey
 
-<<<<<<< HEAD
-# Add the certificates to the Firefox truststore
-cd firefox
-for dir in ~/Library/Application\ Support/Firefox/Profiles/*
-do
-	if [ -d "${dir}" ]
-	then
-		# ignore: remove certificate gives error SEC_ERROR_LEGACY_DATABASE, when certificate not found
-		./certutil -D -n "My eidonkey CA" -d "${dir}"
-		./certutil -A -n "My eidonkey CA" -t Cc,, -i ../cacert.crt -d "${dir}"
-	fi
-done
-cd ..
-
 # Sign the components
 shasum -a 256 -t post-install-eidonkey > eidonkey.sig
 shasum -b -a 256 -b eidonkey >> eidonkey.sig
 shasum -b -a 256 -b eid_pin >> eidonkey.sig
+shasum -b -a 256 -b post-startup-eidonkey >> eidonkey.sig
+shasum -b -a 256 -b firefox/certutil >> eidonkey.sig
 
 # Secure access to application directory and applications
 chmod 500 eidonkey
 chmod 500 eid_pin
+chmod 500 firefox/certutil
 chmod 500 eidonkey.sig
-chmod 400 cert.key
-chmod 444 cert.crt
-chmod 444 cacert.crt
 chmod 500 post-install-eidonkey
-=======
-chmod u+s post-startup-eidonkey
->>>>>>> 45577c8d84a69259a180013698287abe3b0dc4c3
+chmod 500 post-startup-eidonkey

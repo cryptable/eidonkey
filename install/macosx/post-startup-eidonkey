@@ -44,3 +44,6 @@ do
 	fi
 done
 cd ..
+
+chmod 444 cert.crt
+chmod 444 cacert.crt
