@@ -1,3 +1,5 @@
+#[macro_use]
+extern crate log;
 extern crate libc;
 #[macro_use]
 extern crate lazy_static;
@@ -175,12 +177,12 @@ fn get_protocol_string(prot: u32) -> String {
 
 fn get_response(card_handle: MutexGuard<DonkeyCardConnect>,len: u8, response: &mut Vec<u8>) -> Result< Vec<u8>, u32> {
 	let mut get_cmd: Vec<u8> = vec![0x00, 0xC0, 0x00, 0x00, len];
-	println!("get_response: get response len [{:02X}]", len);
+	trace!("get_response: get response len [{:02X}]", len);
 
 	let result = card_handle.transmit(&get_cmd);
 	match result {
 		Ok(resp) => {
-			println!("select: Get response finished {:X}:{:X}", resp.sw[0], resp.sw[1]);
+			trace!("select: Get response finished {:X}:{:X}", resp.sw[0], resp.sw[1]);
 			let mut copy_data = resp.data.clone();
 			response.append(&mut copy_data);
 			if (resp.sw[0] == 0x90) && (resp.sw[1] == 0x00) {
@@ -315,141 +317,141 @@ impl EIdDonkeyCard {
 				match id_sig_res {
 					Ok(id_sig) => {
 						let mut pos: usize = 0;
-						println!("card_number tag : {}", id[pos]);
+						trace!("card_number tag : {}", id[pos]);
 						pos = pos + 1;
 						let mut len = get_data_len(&id, pos);
 						pos = pos + len.1 as usize;
-						println!("pos : {}", pos);
+						trace!("pos : {}", pos);
 						let s_card_number = copy_vector_to_string(&id, pos, len.0);
 						pos = pos + len.0 as usize;
-						println!("chip_number tag : {}", id[pos]);
+						trace!("chip_number tag : {}", id[pos]);
 						pos = pos + 1;
 						len = get_data_len(&id, pos);
 						pos = pos + len.1 as usize;
-						println!("pos : {}", pos);
+						trace!("pos : {}", pos);
 						let v_chip_number = copy_vector(&id, pos, len.0);
 						pos = pos + len.0 as usize;
-						println!("validity_begin tag : {}", id[pos]);
+						trace!("validity_begin tag : {}", id[pos]);
 						pos = pos + 1;
 						len = get_data_len(&id, pos);
 						pos = pos + len.1 as usize;
-						println!("pos : {}", pos);
+						trace!("pos : {}", pos);
 						let s_validity_begin = convert_validity_date(&copy_vector_to_string(&id, pos, len.0));
 						pos = pos + len.0 as usize;
-						println!("validity_end tag : {}", id[pos]);
+						trace!("validity_end tag : {}", id[pos]);
 						pos = pos + 1;
 						len = get_data_len(&id, pos);
 						pos = pos + len.1 as usize;
-						println!("pos : {}", pos);
+						trace!("pos : {}", pos);
 						let s_validity_end = convert_validity_date(&copy_vector_to_string(&id, pos, len.0));
 						pos = pos + len.0 as usize;
-						println!("delivery_municipality tag : {}", id[pos]);
+						trace!("delivery_municipality tag : {}", id[pos]);
 						pos = pos + 1;
 						len = get_data_len(&id, pos);
 						pos = pos + len.1 as usize;
-						println!("pos : {}", pos);
+						trace!("pos : {}", pos);
 						let s_delivery_municipality = copy_vector_to_string(&id, pos, len.0);
 						pos = pos + len.0 as usize;
-						println!("national_number tag : {}", id[pos]);
+						trace!("national_number tag : {}", id[pos]);
 						pos = pos + 1;
 						len = get_data_len(&id, pos);
 						pos = pos + len.1 as usize;
-						println!("pos : {}", pos);
+						trace!("pos : {}", pos);
 						let s_national_number = copy_vector_to_string(&id, pos, len.0);
 						pos = pos + len.0 as usize;
-						println!("name tag : {}", id[pos]);
+						trace!("name tag : {}", id[pos]);
 						pos = pos + 1;
 						len = get_data_len(&id, pos);
 						pos = pos + len.1 as usize;
-						println!("pos : {}", pos);
+						trace!("pos : {}", pos);
 						let s_name = copy_vector_to_string(&id, pos, len.0);
 						pos = pos + len.0 as usize;
 						let mut s_second_first_name : Option<String>;
 						if id[pos] == TAG_TWO_FIRST_FIRST_NAMES {
-							println!("second_first_name tag : {}", id[pos]);
+							trace!("second_first_name tag : {}", id[pos]);
 							pos = pos + 1;
 							len = get_data_len(&id, pos);
 							pos = pos + len.1 as usize;
-							println!("pos : {}", pos);
+							trace!("pos : {}", pos);
 							s_second_first_name = Some(copy_vector_to_string(&id, pos, len.0));
 							pos = pos + len.0 as usize;
 						}
 						else {
 							s_second_first_name = None;							
 						}
-						println!("third_first_name tag : {}", id[pos]);
+						trace!("third_first_name tag : {}", id[pos]);
 						pos = pos + 1;
 						len = get_data_len(&id, pos);
 						pos = pos + len.1 as usize;
-						println!("pos : {}", pos);
+						trace!("pos : {}", pos);
 						let s_third_first_name = copy_vector_to_string(&id, pos, len.0);
 						pos = pos + len.0 as usize;
-						println!("nationality tag : {}", id[pos]);
+						trace!("nationality tag : {}", id[pos]);
 						pos = pos + 1;
 						len = get_data_len(&id, pos);
 						pos = pos + len.1 as usize;
-						println!("pos : {}", pos);
+						trace!("pos : {}", pos);
 						let s_nationality = copy_vector_to_string(&id, pos, len.0);
 						pos = pos + len.0 as usize;
-						println!("birth_location tag : {}", id[pos]);
+						trace!("birth_location tag : {}", id[pos]);
 						pos = pos + 1;
 						len = get_data_len(&id, pos);
 						pos = pos + len.1 as usize;
-						println!("pos : {}", pos);
+						trace!("pos : {}", pos);
 						let s_birth_location = copy_vector_to_string(&id, pos, len.0);
 						pos = pos + len.0 as usize;
-						println!("birth_date tag : {}", id[pos]);
+						trace!("birth_date tag : {}", id[pos]);
 						pos = pos + 1;
 						len = get_data_len(&id, pos);
 						pos = pos + len.1 as usize;
-						println!("pos : {}", pos);
+						trace!("pos : {}", pos);
 						let s_birth_date = convert_birth_date(&copy_vector_to_string(&id, pos, len.0));
 						pos = pos + len.0 as usize;
-						println!("sex tag : {}", id[pos]);
+						trace!("sex tag : {}", id[pos]);
 						pos = pos + 1;
 						len = get_data_len(&id, pos);
 						pos = pos + len.1 as usize;
-						println!("pos : {}", pos);
+						trace!("pos : {}", pos);
 						let s_sex = copy_vector_to_gender(&id, pos, len.0);
 						pos = pos + len.0 as usize;
 						let mut s_noble_condition : Option<String>;
 						if id[pos] == TAG_NOBLE_CONDITION {
-							println!("noble_condition tag : {}", id[pos]);
+							trace!("noble_condition tag : {}", id[pos]);
 							pos = pos + 1;
 							len = get_data_len(&id, pos);
 							pos = pos + len.1 as usize;
-							println!("pos : {}", pos);
+							trace!("pos : {}", pos);
 							s_noble_condition = Some(copy_vector_to_string(&id, pos, len.0));
 							pos = pos + len.0 as usize;
 						}
 						else {
 							s_noble_condition = None;
 						}
-						println!("document_type tag : {}", id[pos]);
+						trace!("document_type tag : {}", id[pos]);
 						pos = pos + 1;
 						len = get_data_len(&id, pos);
 						pos = pos + len.1 as usize;
-						println!("pos : {}", pos);
+						trace!("pos : {}", pos);
 						let s_document_type = copy_vector_to_string(&id, pos, len.0);
 						pos = pos + len.0 as usize;
 						let s_special_status: Option<String>;
 						if id[pos] == TAG_SPECIAL_STATUS {
-							println!("special_status tag : {}", id[pos]);
+							trace!("special_status tag : {}", id[pos]);
 							pos = pos + 1;
 							len = get_data_len(&id, pos);
 							pos = pos + len.1 as usize;
-							println!("pos : {}", pos);
+							trace!("pos : {}", pos);
 							s_special_status = Some(copy_vector_to_string(&id, pos, len.0));
 							pos = pos + len.0 as usize;
 						}
 						else {
 							s_special_status = None;
 						}
-						println!("hash_photo tag : {}", id[pos]);
+						trace!("hash_photo tag : {}", id[pos]);
 						pos = pos + 1;
 						len = get_data_len(&id, pos);
 						pos = pos + len.1 as usize;
-						println!("pos : {}", pos);
+						trace!("pos : {}", pos);
 						let v_hash_photo = copy_vector(&id, pos, len.0);
 
 						Ok(EIdIdentity {
@@ -489,26 +491,26 @@ impl EIdDonkeyCard {
 				match address_sig_res {
 					Ok(address_sig) => {
 						let mut pos: usize = 0;
-						println!("street tag : {}", addr[pos]);
+						trace!("street tag : {}", addr[pos]);
 						pos = pos + 1;
 						let mut len = get_data_len(&addr, pos);
 						pos = pos + len.1 as usize;
-						println!("pos : {}", pos);
+						trace!("pos : {}", pos);
 						let s_street = copy_vector_to_string(&addr, pos, len.0);
-						println!("street : {}", s_street);
+						trace!("street : {}", s_street);
 						pos = pos + len.0 as usize;
-						println!("postal code tag : {}", addr[pos]);
+						trace!("postal code tag : {}", addr[pos]);
 						pos = pos + 1;
 						len = get_data_len(&addr, pos);
 						pos = pos + len.1 as usize;
-						println!("pos : {}", pos);
+						trace!("pos : {}", pos);
 						let s_zip_code = copy_vector_to_string(&addr, pos, len.0);
 						pos = pos + len.0 as usize;
-						println!("city tag : {}", addr[pos]);
+						trace!("city tag : {}", addr[pos]);
 						pos = pos + 1;
 						len = get_data_len(&addr, pos);
 						pos = pos + len.1 as usize;
-						println!("pos : {}", pos);
+						trace!("pos : {}", pos);
 						let s_city = copy_vector_to_string(&addr, pos, len.0);
 						Ok(EIdAddress{
 							street: s_street,
@@ -615,7 +617,7 @@ impl EIdDonkeyCard {
 					Ok(())
 				}
 				else {
-					println!("sw0:{:X}, sw1:{:X}", resp.sw[0], resp.sw[1]);
+					trace!("sw0:{:X}, sw1:{:X}", resp.sw[0], resp.sw[1]);
 					Err(102)
 				}
 			},
@@ -626,17 +628,17 @@ impl EIdDonkeyCard {
 	fn select(&self, signAlgo:u8, signKey: u8) -> Result< (), u32> {
 		let card_handle = self.card_handle.lock().unwrap();
 		let set_cmd: Vec<u8> = vec![0x00, 0x22, 0x41, 0xB6, 0x05, 0x04, 0x80, signAlgo, 0x84, signKey];
-		println!("select: select Authentication Key");
+		trace!("select: select Authentication Key");
 
 		let result = card_handle.transmit(&set_cmd);
 		match result {
 			Ok(resp) => {
-				println!("select: Select finished {:X}:{:X}", resp.sw[0], resp.sw[1]);
+				trace!("select: Select finished {:X}:{:X}", resp.sw[0], resp.sw[1]);
 				if (resp.sw[0] == 0x90) && (resp.sw[1] == 0x00) {
 					Ok(())
 				}
 				else {
-					println!("sw0:{:X}, sw1:{:X}", resp.sw[0], resp.sw[1]);
+					trace!("sw0:{:X}, sw1:{:X}", resp.sw[0], resp.sw[1]);
 					Err(102)
 				}
 			},
@@ -656,18 +658,18 @@ impl EIdDonkeyCard {
 		for c in sign_cmd.clone() {
 			print!("{:02X}", c);
 		}		
-		println!("]");
+		trace!("]");
 
 		let result = card_handle.transmit(&sign_cmd);
-		println!("sign: start signature {}", sign_cmd.len());
+		trace!("sign: start signature {}", sign_cmd.len());
 		match result {
 			Ok(resp) => {
-				println!("sign: Signature finished {:X}:{:X}", resp.sw[0], resp.sw[1]);
+				trace!("sign: Signature finished {:X}:{:X}", resp.sw[0], resp.sw[1]);
 				if (resp.sw[0] == 0x90) && (resp.sw[1] == 0x00) {
 					Ok(resp.data)
 				}
 				else {
-					println!("sw0:{:X}, sw1:{:X}", resp.sw[0], resp.sw[1]);
+					trace!("sw0:{:X}, sw1:{:X}", resp.sw[0], resp.sw[1]);
 					if resp.sw[0] == 0x61 {
 						let mut response: Vec<u8> = Vec::new();
 						get_response(card_handle, resp.sw[1], &mut response)
@@ -683,15 +685,15 @@ impl EIdDonkeyCard {
 
 	pub fn sign_with_auth_cert(&self, pincode: String, data: & Vec<u8>) -> Result< (Vec<u8>), u32> {
 
-		println!("sign_with_auth_cert: enter PIN {}", pincode);
+		trace!("sign_with_auth_cert: enter PIN {}", pincode);
 		let mut res = self.select(PKCS1, AUTH_KEYID);
 		match res {
 			Ok(_) => {
-				println!("sign_with_auth_cert: select Authentication Key succeeded");
+				trace!("sign_with_auth_cert: select Authentication Key succeeded");
 				res = self.verify(0x01, pincode);
 				match res {
 					Ok(_) => {
-						println!("sign_with_auth_cert: PIN verified");
+						trace!("sign_with_auth_cert: PIN verified");
 						self.sign( &data)
 					},
 					Err(e) => Err(e),
@@ -703,16 +705,16 @@ impl EIdDonkeyCard {
 
 	pub fn sign_with_sign_cert(&self, pincode: String, data: & Vec<u8>) -> Result< (Vec<u8>), u32> {
 
-		println!("sign_with_sign_cert: enter PIN {}", pincode);
+		trace!("sign_with_sign_cert: enter PIN {}", pincode);
 		let mut res = self.select(PKCS1, SIGN_KEYID);
 
 		match res {
 			Ok(_) => {
-				println!("sign_with_sign_cert: select Signature Key succeeded");
+				trace!("sign_with_sign_cert: select Signature Key succeeded");
 				res = self.verify(0x01, pincode);
 				match res {
 					Ok(_) => {
-						println!("sign_with_sign_cert: PIN verified");
+						trace!("sign_with_sign_cert: PIN verified");
 						self.sign( &data)
 					},
 					Err(e) => Err(e),

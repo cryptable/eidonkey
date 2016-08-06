@@ -14,11 +14,14 @@ cmake = "0.1"
 hyper = "0.9"
 mime = "0.2"
 getopts = "0.2"
-serde_json = "0.7"
+serde = "0.8"
+serde_json = "0.8"
 data-encoding = "1.1.2"
 openssl= "0.7"
 libc = "0.2"
 lazy_static = "0.2"
+log = "0.3"
+env_logger = "0.3"
 
 [replace]
 "openssl:0.7.13" = { path = "../rust-openssl/openssl" }

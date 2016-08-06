@@ -1,15 +1,20 @@
-#ifndef PINCODEDLG_H
-#define PINCODEDLG_H
+#ifndef SIGNPINCODEDLG_H
+#define SIGNPINCODEDLG_H
 
 /*
  * PinCodeDialog class declaration
  */
 #include <wx/wx.h>
 
-class PinCodeDlg: public wxDialog
+class SignPinCodeDlg: public wxDialog
 {    
 private:
     wxWindow* m_myParent;
+
+    wxString m_sText;
+
+    wxString m_sHash;
+
     wxString m_sPassword;
 
     wxTextCtrl* m_PinCtrl;
@@ -22,12 +27,13 @@ public:
     }
 
     // Constructors
-    PinCodeDlg( wxWindow* parent,
+    SignPinCodeDlg( wxWindow* parent,
         wxWindowID id = wxID_ANY,
-        const wxString& caption = wxT("Authentication PIN code"),
-        int nbrRetries = -1);
+        const wxString& caption = wxT("Signature PIN code"),
+        int nbrRetries = -1,
+        wxString sHash = wxT("Missing Hash Value"));
     
-    virtual ~PinCodeDlg()
+    virtual ~SignPinCodeDlg()
     {
     }
 
@@ -38,4 +44,4 @@ public:
 private:
 
 };
-#endif // PINCODEDLG_H
+#endif // SIGNPINCODEDLG_H

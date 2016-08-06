@@ -8,7 +8,7 @@
 class PinCodeVal: public wxValidator
 {
 public:
-    PinCodeVal(int minLength = 4, int maxLength = 8, wxButton *button = NULL);
+    PinCodeVal(int minLength = 4, int maxLength = 10, wxButton *button = NULL);
     PinCodeVal(const PinCodeVal& val);
 
 	virtual ~PinCodeVal(){}
