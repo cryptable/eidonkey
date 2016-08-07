@@ -547,7 +547,7 @@ fn main() {
 					pin_code = ResponsePinCode { code:PINCODE_FAILED, data:"Getting the pincode failed (Invalid parameters).".to_string() }
 				}
 				else {
-					pin_code = ResponsePinCode { code:PINCODE_FAILED, data:"PIN code was not entered.".to_string() }
+					pin_code = ResponsePinCode { code:PINCODE_CANCELLED, data:"PIN code was not entered.".to_string() }
 				}
 			}
 		}
