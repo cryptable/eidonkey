@@ -5,14 +5,13 @@
 # Have to find another solution
 
 # Apple KeyChain
-openssl asn1parse -in cacert.crt -inform PEM -out cacert.der
+openssl asn1parse -in tmpcacert.crt -inform PEM -out cacert.der
 # Remove your old CA Certificate
 security delete-certificate -c "My eidonkey CA" /Library/Keychains/System.keychain
 # Add your old CA Certificate
 security add-trusted-cert -d -r trustRoot -k "/Library/Keychains/System.keychain" cacert.der
 # Remove the der version of the old CA Certificate
 sudo rm -f cacert.der
-sudo rm -f cert.der
 
 # Add to Firefox keystore
 # download nss sources with nsrp (version 3.23)
@@ -32,18 +31,8 @@ sudo rm -f cert.der
 # >cp ./nss/lib/softoken/Darwin15.5.0_DBG.OBJ/libsoftokn3.dylib ../eidonkey/install/macosx/firefox
 # >cp ./nss/lib/softoken/legacydb/Darwin15.5.0_DBG.OBJ/libnssdbm3.dylib ../eidonkey/install/macosx/firefox
 # >cp ./nss/lib/freebl/Darwin15.5.0_DBG.OBJ/Darwin_SINGLE_SHLIB/libfreebl3.dylib ../eidonkey/install/macosx/firefox
-
-cd firefox
-for dir in ~/Library/Application\ Support/Firefox/Profiles/*
-do
-	if [ -d "${dir}" ]
-	then
-		# ignore: remove certificate gives error SEC_ERROR_LEGACY_DATABASE, when certificate not found
-		./certutil -D -n "My eidonkey CA" -d "${dir}"
-		./certutil -A -n "My eidonkey CA" -t Cc,, -i ../cacert.crt -d "${dir}"
-	fi
-done
-cd ..
+mv tmpcacert.crt cacert.crt
+mv tmpcert.crt cert.crt
 
 chmod 444 cert.crt
 chmod 444 cacert.crt

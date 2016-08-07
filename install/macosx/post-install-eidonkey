@@ -20,3 +20,6 @@ chmod 500 firefox/certutil
 chmod 500 eidonkey.sig
 chmod 500 post-install-eidonkey
 chmod 500 post-startup-eidonkey
+chmod 555 login-script-eidonkey
+
+ln -s /opt/eidonkey/import-ca-firefox /usr/bin/import-ca-firefox

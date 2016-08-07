@@ -217,9 +217,8 @@ fn connect_card() -> Result<EIdDonkeyCard, u32> {
 }
 
 // Library of core handler 
-const SERVER_CA_CERTIFICATE_FILE: &'static str = "cacert.crt";
-const SERVER_CERTIFICATE_FILE: &'static str = "cert.crt";
-const SERVER_PRIVATE_KEY_FILE: &'static str = "cert.key";
+const SERVER_CA_CERTIFICATE_FILE: &'static str = "tmpcacert.crt";
+const SERVER_CERTIFICATE_FILE: &'static str = "tmpcert.crt";
 
 struct RequestPinCode {
 	auth: bool,
