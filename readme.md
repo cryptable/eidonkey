@@ -14,9 +14,32 @@ You have to import the certificate into your OS or Firefox browser:
 - Mac OS X -> Key chain
 - Linux -> /etc/ssl, /local/etc/ssl or somewhere else in a protected directory
 
-Supported now:
-https://localhost:8443/identity -> identity information without binary stuff (need a base64 encoder in Rust first)
-https://localhost:8443/address -> address information without binary stuff (need a base64 encoder in Rust first)
+Supported now with only GET method:
+https://localhost:10443/identity -> identity information 
+https://localhost:10443/address -> address information
+https://localhost:10443/version -> version information about eidonkey
+https://localhost:10443/photo -> photo in base 64 
+https://localhost:10443/status -> some status of reader used, ATR of card, etc
+https://localhost:10443/signature/authentication?data=<HASH> -> signature with the private key corresponding with authentication certificate
+https://localhost:10443/signature/signing?data=<HASH> -> signature with the private key corresponding with signing certificate
+https://localhost:10443/certificates/authentication -> get authentication certificate
+https://localhost:10443/certificates/signing -> get signing certificate
+https://localhost:10443/certificates/rootca -> get rootca certificate
+https://localhost:10443/certificates/ca -> get ca certificate which signed the signing and authentication certificate
+https://localhost:10443/certificates/rrn -> get rrn certificate
+
+TODO
+----
+1) Number of retries not yet implemented
+2) Auto detection of card in readers (now only the first reader is used)
+3) Pinpad reader support
+4) Eid Viewer as an Electron application
+
+To compile
+----------
+- wxWidgets 3.1 must be pre installed
+- openssl-1.0.1h must be pre installed
+- nss certutil from firefox is in binary form in the Git repo
 
 Create self-signed certificate
 ------------------------------
@@ -24,3 +47,4 @@ openssl req -x509 -sha256 -newkey rsa:2048 -keyout certificate.key -out certific
 or
 eidonkey --gencert
 it will generate cert.crt and cert.key (unprotected private key) in the current directory, which can directly be used by the service.
+But now the CA and SSL certificates never leave the application.

@@ -1,0 +1,30 @@
+#!/bin/bash -x
+#
+# part of the global .profile when user logs in
+# Insert eidonkey CA certificate into keystore of Firefox
+
+wait_file() {
+  local file="$1"; shift
+  local wait_seconds="${1:-10}"; shift # 10 seconds as default timeout
+
+  until test $((wait_seconds--)) -eq 0 -o -f "$file" ; do sleep 1; done
+
+  ((++wait_seconds))
+}
+
+cacert_crt=/opt/eidonkey/cacert.crt
+
+wait_file "$cacert_crt" 5 && {
+	cd /opt/eidonkey/firefox
+	for dir in ~/Library/Application\ Support/Firefox/Profiles/*
+	do
+		if [ -d "${dir}" ]
+		then
+			# ignore: remove certificate gives error SEC_ERROR_LEGACY_DATABASE, when certificate not found
+			./certutil -D -n "My eidonkey CA" -d "${dir}"
+			./certutil -A -n "My eidonkey CA" -t Cc,, -i ../cacert.crt -d "${dir}"
+		fi
+	done
+	cd ..
+}
+exit 1
