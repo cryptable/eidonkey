@@ -1,28 +1,9 @@
 #!/bin/bash -x
+# Post startup script to give a signal to import-ca-browser script to import the cacert.crt through renaming it from tmpcacert.crt
 
-# Chrome/linux browser keychain
-openssl asn1parse -in cacert.crt -inform PEM -out cacert.der 2>&1 >/dev/null
-# Remove your old CA Certificate
-certutil -D -n "My eidonkey CA" -d sql:"${HOME}/.pki/nssdb" 2>&1 >/dev/null
-# Add your old CA Certificate
-certutil -A -n "My eidonkey CA" -t Cc,, -i ./cacert.crt -d sql:"${HOME}/.pki/nssdb" 2>&1 >/dev/null
+mv tmpcacert.crt cacert.crt
+mv tmpcert.crt cert.crt
 
-# Add to Firefox keystore
-# package libnss3-tools has to be installed
-for dir in ${HOME}/.mozilla/firefox/*
-do
-	if [ -d ${dir} ] 2>&1 >/dev/null
-	then
-		if [ ${dir: -8} == ".default" ] 2>&1 >/dev/null
-		then
-			# ignore: remove certificate gives error SEC_ERROR_LEGACY_DATABASE, when certificate not found
-			certutil -D -n "My eidonkey CA" -d "${dir}" 2>&1 >/dev/null
-			certutil -A -n "My eidonkey CA" -t Cc,, -i cacert.crt -d "${dir}" 2>&1 >/dev/null
-		fi
-	fi
-done
-
-# Remove the der version of the old CA Certificate
-rm -f cacert.der
-rm -f cert.der
+chmod 444 cert.crt
+chmod 444 cacert.crt
 

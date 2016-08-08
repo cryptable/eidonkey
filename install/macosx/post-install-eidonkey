@@ -22,7 +22,7 @@ chmod 500 post-install-eidonkey
 chmod 500 post-startup-eidonkey
 chmod 555 import-ca-firefox
 
-ln -s /opt/eidonkey/import-ca-firefox /usr/bin/import-ca-firefox
+ln -s /opt/eidonkey/import-ca-firefox /usr/local/bin/import-ca-firefox
 
 # Copy the Launch script to final destinations
 cp org.cryptable.eidonkey.plist /Library/LaunchDaemons/

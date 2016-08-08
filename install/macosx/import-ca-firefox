@@ -27,4 +27,4 @@ wait_file "$cacert_crt" 5 && {
 	done
 	cd ..
 }
-exit 1
+exit 0
