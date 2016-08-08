@@ -1,9 +1,11 @@
 /**
  * @brief: This application perform solely the pincode request to the user
  */
+#include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
 #include <string>
+#include <string.h>
 #include "pincode.h"
 
 using namespace std;
@@ -78,7 +80,7 @@ int main(int argc, char *argv[]) {
 			}
 			else {
 				char *n = argv[i];
-				if (!isnumber(*n)) {
+				if (!isnumber((const char *)n)) {
 					ret_msg = "Invalid number of retries";
 					ret = RET_INVALID_ARGUMENTS;
 				}
