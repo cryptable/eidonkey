@@ -34,8 +34,26 @@ const TAG_TWO_FIRST_FIRST_NAMES: u8         = 8;
 const TAG_NOBLE_CONDITION: u8               = 14;
 const TAG_SPECIAL_STATUS: u8                = 16;
 
-pub const EIDONKEY_READ_ERROR: u32 			= 0x80120001;
-pub const EIDONKEY_SIGN_ERROR: u32 			= 0x80120002;
+pub const EIDONKEY_BASE_ERROR: u32 				= 0x80120000;
+pub const EIDONKEY_READ_ERROR: u32 				= 0x80120001;
+pub const EIDONKEY_SIGN_ERROR: u32 				= 0x80120002;
+pub const EIDONKEY_VERIFY_ERROR: u32			= 0x80120003;
+pub const EIDONKEY_WRONG_PIN_RETRIES_1: u32		= 0x801200C1;
+pub const EIDONKEY_WRONG_PIN_RETRIES_2: u32		= 0x801200C2;
+pub const EIDONKEY_WRONG_PIN_RETRIES_3: u32		= 0x801200C3;
+pub const EIDONKEY_WRONG_PIN_RETRIES_4: u32		= 0x801200C4;
+pub const EIDONKEY_WRONG_PIN_RETRIES_5: u32		= 0x801200C5;
+pub const EIDONKEY_WRONG_PIN_RETRIES_6: u32		= 0x801200C6;
+pub const EIDONKEY_WRONG_PIN_RETRIES_7: u32		= 0x801200C7;
+pub const EIDONKEY_WRONG_PIN_RETRIES_8: u32		= 0x801200C8;
+pub const EIDONKEY_WRONG_PIN_RETRIES_9: u32		= 0x801200C9;
+pub const EIDONKEY_WRONG_PIN_RETRIES_10: u32	= 0x801200CA;
+pub const EIDONKEY_WRONG_PIN_RETRIES_11: u32	= 0x801200CB;
+pub const EIDONKEY_WRONG_PIN_RETRIES_12: u32	= 0x801200CC;
+pub const EIDONKEY_WRONG_PIN_RETRIES_13: u32	= 0x801200CD;
+pub const EIDONKEY_WRONG_PIN_RETRIES_14: u32	= 0x801200CE;
+pub const EIDONKEY_WRONG_PIN_RETRIES_15: u32	= 0x801200CF;
+pub const EIDONKEY_CARD_BLOCKED: u32			= 0x801200CF;
 
 #[derive(Clone)]
 pub struct EIdDonkeyCard {
@@ -199,7 +217,7 @@ fn get_response(card_handle: MutexGuard<DonkeyCardConnect>,len: u8, response: &m
 					}
 				}
 				else {
-					Err(102)
+					Err(EIDONKEY_READ_ERROR)
 				}
 			}
 		},
@@ -618,7 +636,16 @@ impl EIdDonkeyCard {
 				}
 				else {
 					trace!("sw0:{:X}, sw1:{:X}", resp.sw[0], resp.sw[1]);
-					Err(102)
+					if resp.sw[0] == 0x63 {
+						// WRONG PIN CODE resp.sw[1]=0Cx where x is number of retries  
+						Err(EIDONKEY_BASE_ERROR + resp.sw[1] as u32)
+					}
+					else if (resp.sw[0] == 0x69) && (resp.sw[1] == 0x83) {
+						Err(EIDONKEY_CARD_BLOCKED)
+					}
+					else {
+						Err(EIDONKEY_VERIFY_ERROR)
+					}
 				}
 			},
 			Err(e) => Err(e),
@@ -639,7 +666,7 @@ impl EIdDonkeyCard {
 				}
 				else {
 					trace!("sw0:{:X}, sw1:{:X}", resp.sw[0], resp.sw[1]);
-					Err(102)
+					Err(EIDONKEY_READ_ERROR)
 				}
 			},
 			Err(e) => Err(e),
@@ -675,7 +702,7 @@ impl EIdDonkeyCard {
 						get_response(card_handle, resp.sw[1], &mut response)
 					}
 					else {
-						Err(102)
+						Err(EIDONKEY_READ_ERROR)
 					}
 				}
 			},
