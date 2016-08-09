@@ -1,0 +1,26 @@
+#!/bin/bash -x
+
+# Run as sudo during installation
+# Open personal FW to allow connections to the service
+# TODO
+
+# Sign the components
+shasum -a 256 -t post-install-eidonkey > eidonkey.sig
+shasum -b -a 256 -b eidonkey >> eidonkey.sig
+shasum -b -a 256 -b pincode >> eidonkey.sig
+shasum -b -a 256 -b post-startup-eidonkey >> eidonkey.sig
+shasum -b -a 256 -b firefox/certutil >> eidonkey.sig
+
+# Secure access to application directory and applications
+chmod 500 eidonkey
+chmod 500 eid_pin
+chmod 500 eidonkey.sig
+chmod 500 post-install-eidonkey
+chmod 500 post-startup-eidonkey
+chmod 555 firefox/*
+chmod 555 import-ca-browsers
+
+ln -s /opt/eidonkey/import-ca-firefox /usr/local/bin/import-ca-firefox
+
+# setup a startup script to import ca into browser truststores
+# in ~/.config/autostart or /etc/xdg/autostart
