@@ -33,7 +33,7 @@ use getopts::Options;
 
 use data_encoding::{base64, hex};
 
-use eidonkey::EIdDonkeyCard;
+use eidonkey::{ EIdDonkeyCard, EIDONKEY_WRONG_PIN_RETRIES_X };
 
 mod pin;
 use pin::*;
@@ -241,66 +241,86 @@ impl SenderHandler {
 	fn signature_auth(&self, eid_card: EIdDonkeyCard, params: &str) -> String {
 		let split_params = params.split("=");
 		let vec_params : Vec<&str> = split_params.collect();
+		let mut retries: i32 = -1;
 
 		if vec_params.len() <= 1 {
 			return error_response_with_msg(MISSING_PARAMETERS, "Missing Parameters".to_string())
 		}
 
-		self.sender.lock().unwrap().send(RequestPinCode {auth: true, nbr_retries: -1, data: vec_params[1].to_uppercase()}).unwrap();
-		let pincode = self.receiver.lock().unwrap().recv().unwrap();
+		loop {
+			self.sender.lock().unwrap().send(RequestPinCode {auth: true, nbr_retries: retries as i32, data: vec_params[1].to_uppercase()}).unwrap();
+			let pincode = self.receiver.lock().unwrap().recv().unwrap();
 
-		if pincode.code == 0 {
-			trace!("signature_auth: Authentication of [{:?}]", vec_params[1]);
-			let data_res = hex::decode(vec_params[1].to_uppercase().as_bytes());
-			match data_res {
-				Ok(data) => {
-					trace!("signature_auth: Start signing");
-					let signature_res = eid_card.sign_with_auth_cert(pincode.data, &data);
+			if pincode.code == 0 {
+				trace!("signature_auth: Authentication of [{:?}]", vec_params[1]);
+				let data_res = hex::decode(vec_params[1].to_uppercase().as_bytes());
+				match data_res {
+					Ok(data) => {
+						trace!("signature_auth: Start signing");
+						let signature_res = eid_card.sign_with_auth_cert(pincode.data, &data);
 
-					match signature_res {
-						Ok(signature) => format!("{{\"result\":\"ok\",\"signature\": \"{}\"}}", 
-					 							base64::encode(&signature)),
-						Err(e) => error_card_response(e)
-					}
-				},
-				Err(_) => error_response_with_msg(INCORRECT_PARAMETERS, "Incorrect Parameters".to_string())
+						match signature_res {
+							Ok(signature) => return format!("{{\"result\":\"ok\",\"signature\": \"{}\"}}", 
+						 								base64::encode(&signature)),
+							Err(e) => {
+								if (e ^ EIDONKEY_WRONG_PIN_RETRIES_X) > 0 {
+									retries = (e ^ EIDONKEY_WRONG_PIN_RETRIES_X) as i32;
+								}	
+								else {
+									return error_card_response(e)
+								}
+							}
+						}
+					},
+					Err(_) => return error_response_with_msg(INCORRECT_PARAMETERS, "Incorrect Parameters".to_string())
+				}
 			}
-		}
-		else {
-			error_response_with_msg(PINCODE_FAILED, pincode.data.to_string())
+			else {
+				return error_response_with_msg(PINCODE_FAILED, pincode.data.to_string())
+			}
 		}
 	}
 
 	fn signature_sign(&self, eid_card: EIdDonkeyCard, params: &str) -> String {
 		let split_params = params.split("=");
 		let vec_params : Vec<&str> = split_params.collect();
+		let mut retries: i32 = -1;
 
 		if vec_params.len() <= 1 {
 			return error_response_with_msg(MISSING_PARAMETERS, "Missing Parameters".to_string())
 		}
 
-		self.sender.lock().unwrap().send(RequestPinCode {auth: false, nbr_retries: -1, data: vec_params[1].to_uppercase()}).unwrap();
-		let pincode = self.receiver.lock().unwrap().recv().unwrap();
+		loop {
+			self.sender.lock().unwrap().send(RequestPinCode {auth: false, nbr_retries: retries, data: vec_params[1].to_uppercase()}).unwrap();
+			let pincode = self.receiver.lock().unwrap().recv().unwrap();
 
-		if pincode.code == 0 {
-			trace!("signature_sign: Signing of [{:?}]", vec_params[1]);
-			let data_res = hex::decode(vec_params[1].to_uppercase().as_bytes());
-			match data_res {
-				Ok(data) => {
-					trace!("signature_auth: Start signing");
-					let signature_res = eid_card.sign_with_sign_cert(pincode.data, &data);
+			if pincode.code == 0 {
+				trace!("signature_sign: Signing of [{:?}]", vec_params[1]);
+				let data_res = hex::decode(vec_params[1].to_uppercase().as_bytes());
+				match data_res {
+					Ok(data) => {
+						trace!("signature_auth: Start signing");
+						let signature_res = eid_card.sign_with_sign_cert(pincode.data, &data);
 
-					match signature_res {
-						Ok(signature) => format!("{{\"result\":\"ok\",\"signature\": \"{}\"}}", 
-					 							base64::encode(&signature)),
-						Err(e) => error_card_response(e)
-					}				
-				},
-				Err(_) => error_response_with_msg(INCORRECT_PARAMETERS, "Incorrect Parameters".to_string())
+						match signature_res {
+							Ok(signature) => return format!("{{\"result\":\"ok\",\"signature\": \"{}\"}}", 
+						 							     base64::encode(&signature)),
+							Err(e) => {
+								if (e ^ EIDONKEY_WRONG_PIN_RETRIES_X) > 0 {
+									retries = (e ^ EIDONKEY_WRONG_PIN_RETRIES_X) as i32;
+								}	
+								else {
+									return error_card_response(e)
+								}
+							}
+						}				
+					},
+					Err(_) => return error_response_with_msg(INCORRECT_PARAMETERS, "Incorrect Parameters".to_string())
+				}
 			}
-		}
-		else {
-			error_response_with_msg(PINCODE_FAILED, pincode.data.to_string())
+			else {
+				return error_response_with_msg(PINCODE_FAILED, pincode.data.to_string())
+			}
 		}
 	}
 
