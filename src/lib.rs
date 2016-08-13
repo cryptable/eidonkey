@@ -30,6 +30,10 @@ static SIGN_CERT_FILE_ID: &'static[u8] 		= &[0x00, 0xA4, 0x08, 0x0C, 0x06, 0x3F,
 static CA_CERT_FILE_ID: &'static[u8] 		= &[0x00, 0xA4, 0x08, 0x0C, 0x06, 0x3F, 0x00, 0xDF, 0x00, 0x50, 0x3A];
 static ROOT_CERT_FILE_ID: &'static[u8] 		= &[0x00, 0xA4, 0x08, 0x0C, 0x06, 0x3F, 0x00, 0xDF, 0x00, 0x50, 0x3B];
 static RRN_CERT_FILE_ID: &'static[u8] 		= &[0x00, 0xA4, 0x08, 0x0C, 0x06, 0x3F, 0x00, 0xDF, 0x00, 0x50, 0x3C];
+
+static EID_PATTERN: &'static[u8]			= &[0x3B, 0x98, 0x00, 0x40, 0x00, 0x00, 0x00, 0x00, 0x01, 0x01, 0xAD, 0x13, 0x10];
+static EID_MATCH: &'static[u8]				= &[0xFF, 0xFF, 0x00, 0xFF, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xF0];
+
 const TAG_TWO_FIRST_FIRST_NAMES: u8         = 8;
 const TAG_NOBLE_CONDITION: u8               = 14;
 const TAG_SPECIAL_STATUS: u8                = 16;
@@ -55,6 +59,7 @@ pub const EIDONKEY_WRONG_PIN_RETRIES_13: u32	= 0x801200CD;
 pub const EIDONKEY_WRONG_PIN_RETRIES_14: u32	= 0x801200CE;
 pub const EIDONKEY_WRONG_PIN_RETRIES_15: u32	= 0x801200CF;
 pub const EIDONKEY_CARD_BLOCKED: u32			= 0x801200C0;
+pub const EIDONKEY_EID_CARD_NOT_FOUND: u32		= 0x80120004;
 
 #[derive(Clone)]
 pub struct EIdDonkeyCard {
@@ -226,14 +231,90 @@ fn get_response(card_handle: MutexGuard<DonkeyCardConnect>,len: u8, response: &m
 	}
 }
 
+fn match_atr_to_eid(atr: &[u8]) -> bool {
+
+	if atr.len() != EID_PATTERN.len() {
+		trace!("eid ATR length don't match {}:{}", atr.len(), EID_PATTERN.len());
+		return false
+	} 
+	for x in 0..EID_PATTERN.len() {
+		if (atr[x] & EID_MATCH[x]) != EID_PATTERN[x] {
+			trace!("eid ATR element don't match {}:{}:{}:{}", x, atr[x], EID_PATTERN[x], EID_MATCH[x]);
+			return false
+		}
+	}
+
+	return true
+}
+
 lazy_static! {
 	pub static ref EIDDONKEYCARD_LOCK: Mutex<()> = Mutex::new(());
 }
+
+/* Java code to match eid ATR
+	private final static byte[] ATR_PATTERN = new byte[] { 0x3b, (byte) 0x98, 0x00, 0x40, 0x00, (byte) 0x00, 0x00, 0x00,
+			0x01, 0x01, (byte) 0xad, 0x13, 0x10 };
+
+	private final static byte[] ATR_MASK = new byte[] { (byte) 0xff, (byte) 0xff, 0x00, (byte) 0xff, 0x00, 0x00, 0x00,
+			0x00, (byte) 0xff, (byte) 0xff, (byte) 0xff, (byte) 0xff, (byte) 0xf0 };
+
+	private boolean matchesEidAtr(ATR atr) {
+		byte[] atrBytes = atr.getBytes();
+		if (atrBytes.length != ATR_PATTERN.length) {
+			return false;
+		}
+		for (int idx = 0; idx < atrBytes.length; idx++) {
+			atrBytes[idx] &= ATR_MASK[idx];
+		}
+		if (Arrays.equals(atrBytes, ATR_PATTERN)) {
+			return true;
+		}
+		return false;
+	}
+*/
 
 impl EIdDonkeyCard {
 
 	pub fn list_readers() -> Result< Vec<String> , u32> {
 		DonkeyCard::new().and_then(|con| con.list_readers())
+	}
+
+	pub fn find_reader_with_eid() -> Result< String, u32> {
+		let readers_res = DonkeyCard::new().and_then(|con| con.list_readers());
+
+		match readers_res {
+			Ok(readers) => {
+				let reader = readers.iter().find(|reader| {
+					trace!("testing reader {:?}",reader);
+						let handle_res = DonkeyCardConnect::new(reader);
+						match handle_res  {
+							Ok(handle) => {
+								let status_res = handle.status();
+								match status_res {
+									Ok(status) => {
+										trace!("testing reader {:?}",status.reader_name);
+										trace!("testing atr {:?}",status.atr);
+										match_atr_to_eid(&status.atr)
+									},
+									Err(e) => {
+										trace!("error getting ATR {:?}",e);
+										false
+									}
+								}
+							},
+							Err(e) =>  {
+								trace!("error connecting reader {:?}",e);
+								false
+							}
+						}
+					});
+				match reader {
+					Some(rdr) => Ok(rdr.clone()),
+					None =>  Err(EIDONKEY_EID_CARD_NOT_FOUND)
+				}
+			}
+			Err(e) => Err(e)
+		}
 	}
 
 	pub fn get_error_message(e: u32) -> String {
@@ -255,7 +336,15 @@ impl EIdDonkeyCard {
 		}
 	}
 
-	pub fn new(reader : & String) -> Result<EIdDonkeyCard, u32> {
+	pub fn new() -> Result<EIdDonkeyCard, u32> {
+		let eid_reader_res = EIdDonkeyCard::find_reader_with_eid();
+		match eid_reader_res {
+			Ok(eid_reader) => EIdDonkeyCard::new_using(&eid_reader),
+			Err(e) => Err(e)
+		}
+	}
+
+	pub fn new_using(reader : & String) -> Result<EIdDonkeyCard, u32> {
 		unsafe {
 			static mut EIDONKEYCARD_SINGLETON : *const EIdDonkeyCard = 0 as *const EIdDonkeyCard;
 			let _g = EIDDONKEYCARD_LOCK.lock().unwrap();
@@ -303,7 +392,7 @@ impl EIdDonkeyCard {
 								continue
 							}
 							if (resp.sw[0] != 0x90) && (resp.sw[1] != 0x00) {
-								print!("Error code: {:.*X}{:.*X}\n", 2, resp.sw[0], 2, resp.sw[1]);
+								trace!("Error code: {:.*X}{:.*X}\n", 2, resp.sw[0], 2, resp.sw[1]);
 								return Err(EIDONKEY_READ_ERROR)
 							}
 							if resp.data.len() == 0 {

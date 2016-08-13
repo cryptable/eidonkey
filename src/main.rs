@@ -61,6 +61,7 @@ fn error_response_with_msg(error_code: u32, error_msg: String) -> String {
 
 fn identity(eid_card: EIdDonkeyCard) -> String {
 
+	trace!("Read Identity file");
 	let identity_res = eid_card.read_identity();
 	match identity_res {
 		Ok(identity) => format!("{{\"result\":\"ok\",\
@@ -209,11 +210,7 @@ fn certificates_rrn(eid_card: EIdDonkeyCard) -> String {
 }
 
 fn connect_card() -> Result<EIdDonkeyCard, u32> {
-	let reader = EIdDonkeyCard::list_readers();
-	match reader {
-		Ok(readers) =>  EIdDonkeyCard::new(&readers[0]),
-		Err(e) => Err(e)
-	}
+	EIdDonkeyCard::new()
 }
 
 // Library of core handler 
@@ -326,6 +323,7 @@ impl SenderHandler {
 
 	fn call_route_get_handler(&self, uri: &str, params: &str) -> Option<Vec<u8>> {
 
+    	trace!("Handling /{} request", uri);
 		match uri {
 		    "/version" => Some(version().into_bytes()),
 		    "/identity" => { 
