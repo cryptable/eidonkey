@@ -30,9 +30,9 @@ https://localhost:10443/certificates/rrn -> get rrn certificate
 
 TODO
 ----
-1) Pinpad reader support
-2) Eid Viewer as an Electron application
-3) Porting to Windows
+1. Pinpad reader support
+2. Eid Viewer as an Electron application
+3. Porting to Windows
 
 To compile
 ----------
@@ -40,5 +40,6 @@ To compile
 - openssl-1.0.1h development files must be pre installed
 - libpcsclite development files must be pre installed
 - nss certutil from firefox is in binary form in the Git repo
+- clone rust-openssl from ddt-tdd and checkout version 0.7.14
 
 But now the CA and SSL certificates never leave the application.
