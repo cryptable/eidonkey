@@ -30,21 +30,15 @@ https://localhost:10443/certificates/rrn -> get rrn certificate
 
 TODO
 ----
-1) Number of retries not yet implemented
-2) Auto detection of card in readers (now only the first reader is used)
-3) Pinpad reader support
-4) Eid Viewer as an Electron application
+1) Pinpad reader support
+2) Eid Viewer as an Electron application
+3) Porting to Windows
 
 To compile
 ----------
-- wxWidgets 3.1 must be pre installed
-- openssl-1.0.1h must be pre installed
+- wxWidgets 3.1 development files must be pre installed
+- openssl-1.0.1h development files must be pre installed
+- libpcsclite development files must be pre installed
 - nss certutil from firefox is in binary form in the Git repo
 
-Create self-signed certificate
-------------------------------
-openssl req -x509 -sha256 -newkey rsa:2048 -keyout certificate.key -out certificate.crt -days 1024 -nodes -subj '/CN=localhost'
-or
-eidonkey --gencert
-it will generate cert.crt and cert.key (unprotected private key) in the current directory, which can directly be used by the service.
 But now the CA and SSL certificates never leave the application.

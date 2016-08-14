@@ -22,7 +22,7 @@ wait_file "$cacert_crt" 5 && {
 		then
 			# ignore: remove certificate gives error SEC_ERROR_LEGACY_DATABASE, when certificate not found
 			./certutil -D -n "My eidonkey CA" -d "${dir}"
-			./certutil -A -n "My eidonkey CA" -t Cc,, -i ../cacert.crt -d "${dir}"
+			./certutil -A -n "My eidonkey CA" -t Cc,, -i $cacert_crt -d "${dir}"
 		fi
 	done
 	cd ..

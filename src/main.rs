@@ -28,6 +28,7 @@ use openssl::x509::{X509Generator, X509FileType, X509};
 use openssl::x509::extension::{Extension, KeyUsageOption, ExtKeyUsageOption};
 use openssl::crypto::hash::Type;
 use openssl::crypto::pkey::PKey;
+use openssl::crypto::rsa::RSA;
 
 use getopts::Options;
 
@@ -474,28 +475,41 @@ fn register_eidonkey() {
 	                     .unwrap_or_else(|e| { panic!("failed to execute process: {}", e) });
 }
 
+#[cfg(feature="openssl-v080")]
+fn pkey() -> PKey {
+    let rsa = RSA::generate(2048).unwrap();
+    PKey::from_rsa(rsa).unwrap()
+}
+
+#[cfg(feature="openssl-v0714")]
+fn pkey() -> PKey {
+    let mut pk = PKey::new();
+    pk.gen(2048);
+    pk
+}
+
 /// Generate self-signed certificate command
 /// It creates 2 files in the current directory:
 fn generate_signed_certificate<'ctx>() -> (X509<'ctx>, PKey) {
 	
 	// Create CA certificate
+	let ca_pkey = pkey();
 	let ca_gen = X509Generator::new()
-		.set_bitlength(2048)
 		.set_valid_period(365*10)
 		.add_name("CN".to_owned(), "My eidonkey CA".to_owned())
 		.set_sign_hash(Type::SHA256)
 		.add_extension(Extension::KeyUsage(vec![KeyUsageOption::KeyCertSign,KeyUsageOption::CRLSign]))
 		.add_extension(Extension::OtherNid(Nid::BasicConstraints,"critical,CA:TRUE".to_owned()));
 
-	let (ca, ca_pkey) = ca_gen.generate().unwrap();
+	let ca = ca_gen.sign(&ca_pkey).unwrap();
 
 	let ca_path = SERVER_CA_CERTIFICATE_FILE;
 	let mut file = File::create(ca_path).unwrap();
 	assert!(ca.write_pem(&mut file).is_ok());
 
 	// local host generator
+	let cert_pkey = pkey();
 	let cert_gen = X509Generator::new()
-		.set_bitlength(2048)
 		.set_valid_period(365*10)
 		.add_name("CN".to_owned(), "localhost".to_owned())
 		.set_sign_hash(Type::SHA256)
@@ -503,7 +517,7 @@ fn generate_signed_certificate<'ctx>() -> (X509<'ctx>, PKey) {
 		.add_extension(Extension::KeyUsage(vec![KeyUsageOption::DigitalSignature,KeyUsageOption::KeyEncipherment,KeyUsageOption::DataEncipherment]))
 		.add_extension(Extension::ExtKeyUsage(vec![ExtKeyUsageOption::ServerAuth]));
 
-	let (cert, pkey) = cert_gen.generate().unwrap();
+	let cert = cert_gen.sign(&cert_pkey).unwrap();
 
 	let cert_path = SERVER_CERTIFICATE_FILE;
 	let mut file = File::create(cert_path).unwrap();
@@ -511,7 +525,7 @@ fn generate_signed_certificate<'ctx>() -> (X509<'ctx>, PKey) {
 
 	register_eidonkey();
 
-	(cert, pkey)
+	(cert, cert_pkey)
 }
 
 fn main() {

@@ -24,9 +24,9 @@ log = "0.3"
 env_logger = "0.3"
 
 [replace]
-"openssl:0.7.13" = { path = "../rust-openssl/openssl" }
+"openssl:0.7.14" = { path = "../rust-openssl/openssl" }
 
 [features]
-default = [ "tlsv1_1" ]
-#mock_pincode = []
+default = [ "tlsv1_1", "openssl-v0714" ]
+openssl-v0714 = []
 tlsv1_1 = [ "openssl/tlsv1_1" ]

@@ -18,7 +18,7 @@ wait_file "$cacert_crt" 5 && {
 	# Remove your old CA Certificate
 	certutil -D -n "My eidonkey CA" -d sql:"${HOME}/.pki/nssdb" 2>&1 >/dev/null
 	# Add your old CA Certificate
-	certutil -A -n "My eidonkey CA" -t Cc,, -i ./cacert.crt -d sql:"${HOME}/.pki/nssdb" 2>&1 >/dev/null
+	certutil -A -n "My eidonkey CA" -t Cc,, -i $cacert_crt -d sql:"${HOME}/.pki/nssdb" 2>&1 >/dev/null
 
 	# Add to Firefox keystore
 	# package libnss3-tools has to be installed
@@ -30,7 +30,7 @@ wait_file "$cacert_crt" 5 && {
 			then
 				# ignore: remove certificate gives error SEC_ERROR_LEGACY_DATABASE, when certificate not found
 				certutil -D -n "My eidonkey CA" -d "${dir}" 2>&1 >/dev/null
-				certutil -A -n "My eidonkey CA" -t Cc,, -i cacert.crt -d "${dir}" 2>&1 >/dev/null
+				certutil -A -n "My eidonkey CA" -t Cc,, -i $cacert_crt -d "${dir}" 2>&1 >/dev/null
 			fi
 		fi
 	done

@@ -20,7 +20,7 @@ chmod 500 post-startup-eidonkey
 chmod 555 firefox/*
 chmod 555 import-ca-browsers
 
-ln -s /opt/eidonkey/import-ca-firefox /usr/local/bin/import-ca-firefox
+ln -s /opt/eidonkey/import-ca-browsers /usr/local/bin/import-ca-browsers
 
 # setup a startup script to import ca into browser truststores
 # in ~/.config/autostart or /etc/xdg/autostart
