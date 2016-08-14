@@ -40,6 +40,6 @@ To compile
 - openssl-1.0.1h development files must be pre installed
 - libpcsclite development files must be pre installed
 - nss certutil from firefox is in binary form in the Git repo
-- clone rust-openssl from ddt-tdd and checkout version 0.7.14
+- clone rust-openssl from ddt-tdd and checkout version 0.7.14.1
 
 But now the CA and SSL certificates never leave the application.
