@@ -261,10 +261,8 @@ impl SenderHandler {
 							Ok(signature) => return format!("{{\"result\":\"ok\",\"signature\": \"{}\"}}", 
 						 								base64::encode(&signature)),
 							Err(e) => {
-								if (e ^ EIDONKEY_WRONG_PIN_RETRIES_X) > 0 {
-									retries = (e ^ EIDONKEY_WRONG_PIN_RETRIES_X) as i32;
-								}	
-								else {
+								retries = (e ^ EIDONKEY_WRONG_PIN_RETRIES_X) as i32;
+								if (retries < 0) || (retries > 15) {
 									return error_card_response(e)
 								}
 							}
@@ -468,11 +466,17 @@ fn print_usage(program: &str, opts: Options) {
 	print!("{}", opts.usage(&brief));
 }
 
+#[cfg(any(target_os="macos", target_os="linux"))]
 fn register_eidonkey() {
 	let output = Command::new("bash")
 	                     .arg("./post-startup-eidonkey")
 	                     .output()
 	                     .unwrap_or_else(|e| { panic!("failed to execute process: {}", e) });
+}
+
+#[cfg(target_os="windows")]
+fn register_eidonkey() {
+	
 }
 
 #[cfg(feature="openssl-v080")]
@@ -551,8 +555,6 @@ fn main() {
 		start_server(Mutex::new(req_tx), Mutex::new(resp_rx));
 	});
 
-	init_pincode();
-	
 	loop {
 		let pin_code: ResponsePinCode;
 		let pin_code_res: Result<String, u32>;
@@ -585,8 +587,6 @@ fn main() {
 		trace!("Sending PIN code {:?}:{:?}", pin_code.code, pin_code.data);
 		resp_tx.send(pin_code).unwrap();
 	}
-
-	close_pincode();
 
 	let res = http_child.join();
 }

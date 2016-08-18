@@ -3,13 +3,6 @@ name = "eidonkey"
 version = "0.1.0"
 authors = ["david <david.tillemans@cryptable.org>"]
 
-# Build pincode
-# links = "pincode"
-build = "build.rs"
-
-[build-dependencies]
-cmake = "0.1"
-
 [dependencies]
 hyper = "0.9"
 mime = "0.2"
@@ -22,6 +15,8 @@ libc = "0.2"
 lazy_static = "0.2"
 log = "0.3"
 env_logger = "0.3"
+nanomsg = "0.6"
+rand = "0.3"
 
 [replace]
 "openssl:0.7.14" = { path = "../rust-openssl/openssl" }

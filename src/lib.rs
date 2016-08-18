@@ -3,13 +3,14 @@ extern crate log;
 extern crate libc;
 #[macro_use]
 extern crate lazy_static;
-mod card;
+
 use std::io::prelude::*;
 use std::fs::File;
 use std::sync::{Mutex, Arc};
 use std::sync::MutexGuard;
 use std::{mem};
 
+mod card;
 use card::*;
 use card::pcsc::*;
 
@@ -285,29 +286,29 @@ impl EIdDonkeyCard {
 		match readers_res {
 			Ok(readers) => {
 				let reader = readers.iter().find(|reader| {
-					trace!("testing reader {:?}",reader);
-						let handle_res = DonkeyCardConnect::new(reader);
-						match handle_res  {
-							Ok(handle) => {
-								let status_res = handle.status();
-								match status_res {
-									Ok(status) => {
-										trace!("testing reader {:?}",status.reader_name);
-										trace!("testing atr {:?}",status.atr);
-										match_atr_to_eid(&status.atr)
-									},
-									Err(e) => {
-										trace!("error getting ATR {:?}",e);
-										false
-									}
+					trace!("testing reader {}",reader);
+					let handle_res = DonkeyCardConnect::new(reader);
+					match handle_res  {
+						Ok(handle) => {
+							let status_res = handle.status();
+							match status_res {
+								Ok(status) => {
+									trace!("testing reader {:?}",status.reader_name);
+									trace!("testing atr {:?}",status.atr);
+									match_atr_to_eid(&status.atr)
+								},
+								Err(e) => {
+									trace!("error getting ATR {:?}",e);
+									false
 								}
-							},
-							Err(e) =>  {
-								trace!("error connecting reader {:?}",e);
-								false
 							}
+						},
+						Err(e) =>  {
+							trace!("error connecting reader {:?}",e);
+							false
 						}
-					});
+					}
+				});
 				match reader {
 					Some(rdr) => Ok(rdr.clone()),
 					None =>  Err(EIDONKEY_EID_CARD_NOT_FOUND)
@@ -769,13 +770,7 @@ impl EIdDonkeyCard {
 		let mut copy_data = data.clone();
 		sign_cmd.push(data.len() as u8);
 		sign_cmd.append(&mut copy_data);
-		sign_cmd.push(0x80);
-
-		print!("sign: data [");
-		for c in sign_cmd.clone() {
-			print!("{:02X}", c);
-		}		
-		trace!("]");
+		sign_cmd.push(0x00);
 
 		let result = card_handle.transmit(&sign_cmd);
 		trace!("sign: start signature {}", sign_cmd.len());
