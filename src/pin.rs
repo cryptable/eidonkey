@@ -22,13 +22,13 @@ pub const PINCODE_DECODE_UTF8_ERROR:u32	= 103;
 fn get_temp_filepath()-> String {
 	let mut dir = env::temp_dir();
 	let rnd_part: String = thread_rng().gen_ascii_chars().take(10).collect();
-	dir.push(format!("nano{:?}", rnd_part));
+	dir.push("nano".to_string() + &rnd_part);
 	dir.set_extension("ipc");
 	let tmpFN = dir.to_str();
 
 	match tmpFN {
 		Some(filename) => filename.to_string(),
-		None => "./tmpNanomsg.ipc".to_string()
+		None => "/tmpNanomsg.ipc".to_string()
 	}
 }
 
@@ -36,7 +36,7 @@ fn get_temp_filepath()-> String {
 fn get_temp_filepath()-> String {
 	let nano: String = "nano".to_string();
 	let rnd_part: String = thread_rng().gen_ascii_chars().take(10).collect();
-	nano + &rnd_part + ".ipc"
+	"/" + nano + &rnd_part + ".ipc"
 }
 
 fn parse_json_result(jsonData: &str) -> Result<String, u32> {
@@ -62,7 +62,7 @@ pub fn get_pincode_auth(nbr_retries: i32) -> Result<String, u32> {
 
 	let mut socket = Socket::new(Protocol::Pull).unwrap();
 	let tmp_fn = get_temp_filepath();
-	let ipc_fn = format!("ipc:///{}",tmp_fn);
+	let ipc_fn = format!("ipc://{}",tmp_fn);
 	trace!("nanomsg:socket.bind {:?}", tmp_fn);
     let mut endpoint = socket.bind(ipc_fn.as_str()).unwrap();
 
@@ -97,30 +97,37 @@ pub fn get_pincode_auth(nbr_retries: i32) -> Result<String, u32> {
 pub fn get_pincode_sign(nbr_retries: i32, hash: String) -> Result<String, u32> {
 	trace!("Retries [{:?}]", nbr_retries);
 	trace!("Hash [{:?}]", hash);
-	let mut command = Command::new("./pincode");
+	let mut socket = Socket::new(Protocol::Pull).unwrap();
+	let tmp_fn = get_temp_filepath();
+	let ipc_fn = format!("ipc://{}",tmp_fn);
+	trace!("nanomsg:socket.bind {:?}", tmp_fn);
+    let mut endpoint = socket.bind(ipc_fn.as_str()).unwrap();
 
+	trace!("execute command [pincode ]");
+	let mut command = Command::new("./pincode");
 	if nbr_retries >= 0 {
-		command.arg("-d").arg(hash).arg("-r").arg(nbr_retries.to_string());
+		trace!("execute command [pincode -d <hash> -r {:?} -p {:?}]",nbr_retries.to_string(), ipc_fn);
+		command.arg("-d").arg(hash).arg("-r").arg(nbr_retries.to_string()).arg("-p").arg(ipc_fn);
 	}
 	else {
-		command.arg("-h").arg(hash);
+		trace!("execute command [pincode -d <hash> -p {:?}]", ipc_fn);
+		command.arg("-d").arg(hash).arg("-p").arg(ipc_fn);
 	}
 	let output = command.output();
 
-	trace!("get_pincode_sign: {:?}", output);
-	match output {
-		Ok(outp) => {
-			let out = String::from_utf8(outp.stdout);
-
-			match out {
-				Ok(data) => {
-					trace!("get_pincode_sign: output {:?}", data);
-					parse_json_result(&data)
-				},
-				Err(_) => Err(PINCODE_DECODE_UTF8_ERROR)
-			}
+	let mut msg = String::new();
+    let res = socket.read_to_string(&mut msg);
+	match res {
+		Ok(_) => {
+			trace!("get_pincode_sign: output {:?}", msg);
+			fs::remove_file(tmp_fn);
+			parse_json_result(&msg)
 		},
-		Err(_) => Err(PINCODE_CALL_FAILED)
+		Err(e) => {
+			trace!("get_pincode_sign: failed {:?}", e);
+			fs::remove_file(tmp_fn);
+			Err(PINCODE_CALL_FAILED)
+		}
 	}
 }
 
