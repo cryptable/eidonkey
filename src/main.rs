@@ -20,15 +20,16 @@ use hyper::server::{Handler,Server,Request,Response};
 use hyper::header::{AccessControlAllowOrigin, ContentLength, ContentType};
 use hyper::uri::RequestUri;
 use hyper::status::StatusCode;
-use hyper::net::Openssl;
 
-use openssl::ssl::{SslMethod, SslContext};
-use openssl::nid::Nid;
-use openssl::x509::{X509Generator, X509FileType, X509};
-use openssl::x509::extension::{Extension, KeyUsageOption, ExtKeyUsageOption};
-use openssl::crypto::hash::Type;
-use openssl::crypto::pkey::PKey;
-use openssl::crypto::rsa::RSA;
+use openssl::asn1::Asn1Time;
+use openssl::nid;
+use openssl::bn::{BigNum, MSB_MAYBE_ZERO};
+use openssl::ssl::{Ssl, SslMethod, SslContext};
+use openssl::x509::{X509Builder, X509Name, X509FileType, X509, X509Ref};
+use openssl::x509::extension::{Extension, BasicConstraints, KeyUsage, ExtendedKeyUsage, SubjectKeyIdentifier, AuthorityKeyIdentifier};
+use openssl::hash::MessageDigest;
+use openssl::pkey::PKey;
+use openssl::rsa::Rsa;
 
 use getopts::Options;
 
@@ -38,6 +39,9 @@ use eidonkey::{ EIdDonkeyCard, EIDONKEY_WRONG_PIN_RETRIES_X };
 
 mod pin;
 use pin::*;
+
+mod https;
+use https::*;
 
 pub const PARSING_REQUEST_ERROR: u32 	= 0x90020001;
 pub const MISSING_PARAMETERS: u32 		= 0x90020002;
@@ -442,20 +446,10 @@ impl Handler for SenderHandler {
 
 }
 
-// Thighten the SSL server protocols: TLS1.2 only
-// AES256-GCM-SHA384:AES256-SHA256:AES128-GCM-SHA256:AES128-GCM-SHA256
-// ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-SHA384:ECDHE-RSA-AES128-SHA256
-// AES256-GCM-SHA384:AES256-SHA256:AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-SHA384:ECDHE-RSA-AES256-SHA384:ECDHE-ECDSA-AES128-SHA256:ECDHE-RSA-AES128-SHA256
-// TLS 1.1
-// AES128-SHA:AES256-SHA:DH-RSA-AES128-SHA:DH-RSA-AES256-SHA
 fn start_server(http_req: Mutex<SyncSender<RequestPinCode>>, http_resp: Mutex<Receiver<ResponsePinCode>>) {
-	let (cert, pkey) = generate_signed_certificate();
+	let (cert, pkey, ca) = generate_signed_certificate();
 
-	let mut ssl_ctx = SslContext::new(SslMethod::Tlsv1_1).unwrap();
-	ssl_ctx.set_cipher_list("AES128-SHA:AES256-SHA:DH-RSA-AES128-SHA:DH-RSA-AES256-SHA");
-    ssl_ctx.set_certificate(&cert);
-    ssl_ctx.set_private_key(&pkey).unwrap();
-    let ssl = Openssl { context: Arc::new(ssl_ctx) };
+    let ssl = HttpsServer::from_memory(&pkey, &cert, &ca).unwrap();
 	Server::https("127.0.0.1:10443", ssl).unwrap().handle(SenderHandler {
 		sender: http_req,
 		receiver: http_resp
@@ -475,57 +469,107 @@ fn register_eidonkey() {
 	                     .unwrap_or_else(|e| { panic!("failed to execute process: {}", e) });
 }
 
-#[cfg(feature="openssl-v080")]
 fn pkey() -> PKey {
-    let rsa = RSA::generate(2048).unwrap();
+    let rsa = Rsa::generate(2048).unwrap();
     PKey::from_rsa(rsa).unwrap()
-}
-
-#[cfg(feature="openssl-v0714")]
-fn pkey() -> PKey {
-    let mut pk = PKey::new();
-    pk.gen(2048);
-    pk
 }
 
 /// Generate self-signed certificate command
 /// It creates 2 files in the current directory:
-fn generate_signed_certificate<'ctx>() -> (X509<'ctx>, PKey) {
+fn generate_signed_certificate() -> (X509, PKey, X509) {
 	
 	// Create CA certificate
 	let ca_pkey = pkey();
-	let ca_gen = X509Generator::new()
-		.set_valid_period(365*10)
-		.add_name("CN".to_owned(), "My eidonkey CA".to_owned())
-		.set_sign_hash(Type::SHA256)
-		.add_extension(Extension::KeyUsage(vec![KeyUsageOption::KeyCertSign,KeyUsageOption::CRLSign]))
-		.add_extension(Extension::OtherNid(Nid::BasicConstraints,"critical,CA:TRUE".to_owned()));
 
-	let ca = ca_gen.sign(&ca_pkey).unwrap();
+	let mut ca_gen = X509::builder().unwrap();
+	ca_gen.set_version(2).unwrap();
+
+    let mut ca_name = X509Name::builder().unwrap();
+    ca_name.append_entry_by_nid(nid::COMMONNAME, "My eidonkey CA").unwrap();
+    let ca_name = ca_name.build();
+    ca_gen.set_subject_name(&ca_name).unwrap();
+    ca_gen.set_issuer_name(&ca_name).unwrap();
+
+	ca_gen.set_not_before(&Asn1Time::days_from_now(0).unwrap());
+    ca_gen.set_not_after(&Asn1Time::days_from_now(365*10).unwrap());
+
+	let mut serial = BigNum::new().unwrap();
+    serial.rand(128, MSB_MAYBE_ZERO, false).unwrap();
+    ca_gen.set_serial_number(&serial.to_asn1_integer().unwrap()).unwrap();
+
+    ca_gen.set_pubkey(&ca_pkey).unwrap();
+
+    let basic_constraints = BasicConstraints::new().critical().ca().build().unwrap();
+    ca_gen.append_extension(basic_constraints).unwrap();
+
+    let ca_key_usage = KeyUsage::new().key_cert_sign().crl_sign().build().unwrap();
+    ca_gen.append_extension(ca_key_usage).unwrap();
+    
+    let ca_subject_key_identifier = SubjectKeyIdentifier::new()
+        .build(&ca_gen.x509v3_context(None, None))
+        .unwrap();
+    ca_gen.append_extension(ca_subject_key_identifier).unwrap();
+
+    let ca_authority_key_identifier = AuthorityKeyIdentifier::new()
+        .keyid(true)
+        .build(&ca_gen.x509v3_context(None, None))
+        .unwrap();
+    let cert_authority_key_identifier = AuthorityKeyIdentifier::new()
+        .keyid(true)
+        .build(&ca_gen.x509v3_context(None, None))
+        .unwrap();    ca_gen.append_extension(ca_authority_key_identifier).unwrap();
+
+    ca_gen.sign(&ca_pkey, MessageDigest::sha256()).unwrap();
+
+    let ca = ca_gen.build();
 
 	let ca_path = SERVER_CA_CERTIFICATE_FILE;
 	let mut file = File::create(ca_path).unwrap();
-	assert!(ca.write_pem(&mut file).is_ok());
+	assert!(file.write_all(&ca.to_pem().unwrap()).is_ok());
 
 	// local host generator
 	let cert_pkey = pkey();
-	let cert_gen = X509Generator::new()
-		.set_valid_period(365*10)
-		.add_name("CN".to_owned(), "localhost".to_owned())
-		.set_sign_hash(Type::SHA256)
-		.set_ca(&ca, &ca_pkey)
-		.add_extension(Extension::KeyUsage(vec![KeyUsageOption::DigitalSignature,KeyUsageOption::KeyEncipherment,KeyUsageOption::DataEncipherment]))
-		.add_extension(Extension::ExtKeyUsage(vec![ExtKeyUsageOption::ServerAuth]));
+	let mut cert_gen = X509::builder().unwrap();
+	cert_gen.set_version(2).unwrap();
 
-	let cert = cert_gen.sign(&cert_pkey).unwrap();
+    let mut cert_name = X509Name::builder().unwrap();
+    cert_name.append_entry_by_nid(nid::COMMONNAME, "localhost").unwrap();
+    let cert_name = cert_name.build();
+    cert_gen.set_subject_name(&cert_name).unwrap();
+    cert_gen.set_issuer_name(&ca_name).unwrap();
+
+	cert_gen.set_not_before(&Asn1Time::days_from_now(0).unwrap());
+    cert_gen.set_not_after(&Asn1Time::days_from_now(365*10).unwrap());
+
+    serial.rand(128, MSB_MAYBE_ZERO, false).unwrap();
+    cert_gen.set_serial_number(&serial.to_asn1_integer().unwrap()).unwrap();
+    
+    cert_gen.set_pubkey(&cert_pkey).unwrap();
+
+    let cert_key_usage = KeyUsage::new().digital_signature().key_encipherment().data_encipherment().build().unwrap();
+    cert_gen.append_extension(cert_key_usage).unwrap();
+    
+    let cert_subject_key_identifier = SubjectKeyIdentifier::new()
+        .build(&cert_gen.x509v3_context(None, None))
+        .unwrap();
+    cert_gen.append_extension(cert_subject_key_identifier).unwrap();
+
+    cert_gen.append_extension(cert_authority_key_identifier).unwrap();
+
+    let ext_key_usage = ExtendedKeyUsage::new().server_auth().build().unwrap();
+    cert_gen.append_extension(ext_key_usage).unwrap();
+
+    cert_gen.sign(&ca_pkey, MessageDigest::sha256()).unwrap();
+
+    let cert = cert_gen.build();
 
 	let cert_path = SERVER_CERTIFICATE_FILE;
 	let mut file = File::create(cert_path).unwrap();
-	assert!(cert.write_pem(&mut file).is_ok());
+	assert!(file.write_all(&cert.to_pem().unwrap()).is_ok());
 
 	register_eidonkey();
 
-	(cert, cert_pkey)
+	(cert, cert_pkey, ca)
 }
 
 fn main() {
