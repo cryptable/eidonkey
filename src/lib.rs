@@ -251,28 +251,6 @@ lazy_static! {
 	pub static ref EIDDONKEYCARD_LOCK: Mutex<()> = Mutex::new(());
 }
 
-/* Java code to match eid ATR
-	private final static byte[] ATR_PATTERN = new byte[] { 0x3b, (byte) 0x98, 0x00, 0x40, 0x00, (byte) 0x00, 0x00, 0x00,
-			0x01, 0x01, (byte) 0xad, 0x13, 0x10 };
-
-	private final static byte[] ATR_MASK = new byte[] { (byte) 0xff, (byte) 0xff, 0x00, (byte) 0xff, 0x00, 0x00, 0x00,
-			0x00, (byte) 0xff, (byte) 0xff, (byte) 0xff, (byte) 0xff, (byte) 0xf0 };
-
-	private boolean matchesEidAtr(ATR atr) {
-		byte[] atrBytes = atr.getBytes();
-		if (atrBytes.length != ATR_PATTERN.length) {
-			return false;
-		}
-		for (int idx = 0; idx < atrBytes.length; idx++) {
-			atrBytes[idx] &= ATR_MASK[idx];
-		}
-		if (Arrays.equals(atrBytes, ATR_PATTERN)) {
-			return true;
-		}
-		return false;
-	}
-*/
-
 impl EIdDonkeyCard {
 
 	pub fn list_readers() -> Result< Vec<String> , u32> {
@@ -332,6 +310,7 @@ impl EIdDonkeyCard {
 			SCARD_E_UNKNOWN_READER => "Unkown PCSC reader, attached a valid reader".to_string(),
 			SCARD_F_INTERNAL_ERROR => "Internal Error".to_string(),
 			EIDONKEY_READ_ERROR => "Read error from smartcard".to_string(),
+			EIDONKEY_EID_CARD_NOT_FOUND => "No eId card found".to_string(),
 			_ => "Unknown error".to_string()
 		}
 	}

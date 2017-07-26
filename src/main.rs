@@ -328,7 +328,8 @@ impl SenderHandler {
 
 	fn call_route_get_handler(&self, uri: &str, params: &str) -> Option<Vec<u8>> {
 
-    	trace!("Handling /{} request", uri);
+    trace!("Handling /{} request", uri);
+		
 		match uri {
 		    "/version" => Some(version().into_bytes()),
 		    "/identity" => { 
