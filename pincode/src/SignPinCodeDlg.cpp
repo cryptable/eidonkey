@@ -2,15 +2,16 @@
  * PinCodeDlg implementation
  */
 #include <wx/wx.h>
-#include <PinCodeDlg.h>
+#include <SignPinCodeDlg.h>
 #include <PinCodeVal.h>
 
 #define ID_PIN	0x0001
 
-PinCodeDlg::PinCodeDlg(wxWindow* parent,
-                	   wxWindowID id,
-		               const wxString& caption,
-                       int nbrRetries) : wxDialog(parent, id, caption)
+SignPinCodeDlg::SignPinCodeDlg(wxWindow* parent,
+                	           wxWindowID id,
+		                       const wxString& caption,
+                               int nbrRetries,
+                               wxString sHash) : wxDialog(parent, id, caption)
 {
     wxBoxSizer *topSizer = new wxBoxSizer( wxVERTICAL );
 
@@ -20,6 +21,12 @@ PinCodeDlg::PinCodeDlg(wxWindow* parent,
     ok->SetDefault();
     ok->Disable();
 
+    // Add hash to enter 
+    wxStaticText* text_descr = new wxStaticText( this, wxID_STATIC, _T("Hash of text:"), wxDefaultPosition, wxDefaultSize, 0);
+    topSizer->Add(text_descr, 0, wxALIGN_LEFT|wxALL, 5);
+    wxStaticText* text = new wxStaticText( this, wxID_STATIC, sHash, wxDefaultPosition, wxDefaultSize, 0);
+    topSizer->Add(text, 0, wxALIGN_CENTER_HORIZONTAL|wxALL, 5);
+
     // Add text to enter the PIN code
     wxStaticText* descr = NULL;
     if (nbrRetries < 0) {
@@ -28,9 +35,9 @@ PinCodeDlg::PinCodeDlg(wxWindow* parent,
     else {
         descr = new wxStaticText( this, wxID_STATIC, wxString::Format(_T("Enter PIN code (%d retries left)"), nbrRetries), wxDefaultPosition, wxDefaultSize, 0 );        
     }
-    topSizer->Add(descr, 0, wxALIGN_CENTER_HORIZONTAL|wxALL, 5);
+    topSizer->Add(descr, 0, wxALIGN_LEFT|wxALL, 5);
 
-    // Add the PIN code control
+    // TODO add a wxValidator which is able to enable the OK button if 4 to 8 numeric values are entered
     m_PinCtrl = new wxTextCtrl ( this, ID_PIN, wxEmptyString, wxDefaultPosition, wxDefaultSize, wxTE_PASSWORD, PinCodeVal(4, 8, ok));
     topSizer->Add(m_PinCtrl, 0, wxALIGN_CENTER_HORIZONTAL|wxALL, 5);
     
@@ -49,13 +56,13 @@ PinCodeDlg::PinCodeDlg(wxWindow* parent,
     topSizer->Fit( this );
     topSizer->SetSizeHints( this );
 
-    Bind(wxEVT_COMMAND_BUTTON_CLICKED, &PinCodeDlg::OnOK, this, ok->GetId());
-    Bind(wxEVT_COMMAND_BUTTON_CLICKED, &PinCodeDlg::OnCancel, this, cancel->GetId());
+    Bind(wxEVT_COMMAND_BUTTON_CLICKED, &SignPinCodeDlg::OnOK, this, ok->GetId());
+    Bind(wxEVT_COMMAND_BUTTON_CLICKED, &SignPinCodeDlg::OnCancel, this, cancel->GetId());
 
 	Center();
 }
 
-void PinCodeDlg::OnOK(wxCommandEvent& WXUNUSED(event) )
+void SignPinCodeDlg::OnOK(wxCommandEvent& WXUNUSED(event) )
 {
     if (Validate())
     {
@@ -68,7 +75,7 @@ void PinCodeDlg::OnOK(wxCommandEvent& WXUNUSED(event) )
     }
 }
 
-void PinCodeDlg::OnCancel(wxCommandEvent& WXUNUSED(event) )
+void SignPinCodeDlg::OnCancel(wxCommandEvent& WXUNUSED(event) )
 {
     if (GetParent()) {
         GetParent()->SetFocus();

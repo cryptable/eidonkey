@@ -1,4 +1,3 @@
-
 // Error codes
 pub const SCARD_S_SUCCESS: u32 				= 0x00000000; 
 pub const SCARD_F_INTERNAL_ERROR: u32 		= 0x80100001; 
@@ -198,7 +197,7 @@ pub mod pcsc {
 	    	unsafe {
 	    		let mut x: u32 = 0;
 	    		let ret = SCardEstablishContext(0x0000, ptr::null(), ptr::null(), &mut x);
-	    		println!("Establish context {}: {:X}", x, ret);
+	    		trace!("Establish context {}: {:X}", x, ret);
 				if ret == SCARD_S_SUCCESS {
 	    			return Ok(DonkeyCard {
 	    						context: x,
@@ -239,7 +238,7 @@ pub mod pcsc {
 		fn drop(&mut self) {
 			unsafe {
 				let ret = SCardReleaseContext(self.context);
-		        println!("Dropping Context ![{}:{}]", self.context, ret);
+		        trace!("Dropping Context ![{}:{}]", self.context, ret);
 		    }
 	    }
 	}
@@ -257,8 +256,8 @@ pub mod pcsc {
 	   			let ret2 = SCardConnect(context, name.as_bytes().as_ptr(), SCARD_SHARE_SHARED, SCARD_PROTOCOL_ANY, 
 	   				&mut handle, &mut protocol);
 	   			if ret2 == SCARD_S_SUCCESS {
-					println!("context: {:?}", context);
-					println!("handle: {:?}", handle);
+					trace!("context: {:?}", context);
+					trace!("handle: {:?}", handle);
 		   			let card_connect = DonkeyCardConnect {
 		   				context: context,
 		   				card_handle: handle,
@@ -312,7 +311,7 @@ pub mod pcsc {
 
 		pub fn transmit(&self, sendbuffer: & Vec<u8> ) -> Result< ResponseAPDU, u32> {
 			unsafe {
-				println!("transmit using handle: {:?}", self.card_handle);
+				trace!("transmit using handle: {:?}", self.card_handle);
 				let scard_io_request_lg = mem::size_of::<Scard_IO_Request>();
 
 				let scard_pci_send: Scard_IO_Request  = Scard_IO_Request { proto:SCARD_PROTOCOL_T0, 
@@ -324,7 +323,7 @@ pub mod pcsc {
 				let ret = SCardTransmit(self.card_handle, &scard_pci_send, sendbuffer.as_ptr(), sendbuffer.len(),
 					&mut scard_pci_recv, recv_buffer.as_mut_ptr(), &mut recv_len);
 				if ret == SCARD_S_SUCCESS {
-					println!("Recv length [{}]", recv_len);
+					trace!("Recv length [{}]", recv_len);
 					recv_buffer.truncate(recv_len);
 					return ResponseAPDU::parse(recv_buffer);
 				}
@@ -339,9 +338,9 @@ pub mod pcsc {
 		fn drop(&mut self) {
 			unsafe {
 				let ret1 = SCardDisconnect(self.card_handle, SCARD_LEAVE_CARD);
-		        println!("Disconnect ![{}:{}]", self.context, ret1);
+		        trace!("Disconnect ![{}:{}]", self.context, ret1);
 				let ret2 = SCardReleaseContext(self.context);
-		        println!("Dropping Context ![{}:{}]", self.context, ret2);
+		        trace!("Dropping Context ![{}:{}]", self.context, ret2);
 		    }
 	    }
 	}
@@ -429,7 +428,7 @@ pub mod pcsc {
 	    	unsafe {
 	    		let mut x: i64 = 0;
 	    		let ret = SCardEstablishContext(0x0000, ptr::null(), ptr::null(), &mut x);
-	    		println!("Establish context {:X}: {:X}", x, ret);
+	    		trace!("Establish context {:X}: {:X}", x, ret);
 	    		if ret == SCARD_S_SUCCESS as i64 {
 		    		return Ok(DonkeyCard {
 		    				context: x,
@@ -470,7 +469,7 @@ pub mod pcsc {
 		fn drop(&mut self) {
 			unsafe {
 				let ret = SCardReleaseContext(self.context);
-		        println!("Dropping Context! [{:X}:{:X}]", self.context, ret);
+		        trace!("Dropping Context! [{:X}:{:X}]", self.context, ret);
 		    }
 	    }
 	}
@@ -488,8 +487,8 @@ pub mod pcsc {
 	   			let ret2 = SCardConnect(context, name.as_bytes().as_ptr(), SCARD_SHARE_SHARED as u64, SCARD_PROTOCOL_ANY as u64, 
 	   				&mut handle, &mut protocol);
 	   			if ret2 == SCARD_S_SUCCESS as i64 {
-					println!("context: {:X}", context);
-					println!("handle: {:X}", handle);
+					trace!("context: {:X}", context);
+					trace!("handle: {:X}", handle);
 		   			let card_connect = DonkeyCardConnect {
 		   				context: context,
 		   				card_handle: handle,
@@ -543,7 +542,7 @@ pub mod pcsc {
 
 		pub fn transmit(&self, sendbuffer: & Vec<u8> ) -> Result< ResponseAPDU, u32> {
 			unsafe {
-				println!("transmit using handle: {:X}", self.card_handle);
+				trace!("transmit using handle: {:X}", self.card_handle);
 				let scard_io_request_lg = mem::size_of::<Scard_IO_Request>();
 
 				let scard_pci_send: Scard_IO_Request  = Scard_IO_Request { proto:SCARD_PROTOCOL_T0 as u64, 
@@ -555,7 +554,7 @@ pub mod pcsc {
 				let ret = SCardTransmit(self.card_handle, &scard_pci_send, sendbuffer.as_ptr(), sendbuffer.len() as u64,
 					&mut scard_pci_recv, recv_buffer.as_mut_ptr(), &mut recv_len);
 				if ret == SCARD_S_SUCCESS as i64 {
-					println!("Recv length [{}]", recv_len);
+					trace!("Recv length [{}]", recv_len);
 					recv_buffer.truncate(recv_len as usize);
 					return ResponseAPDU::parse(recv_buffer);
 				}
@@ -570,9 +569,9 @@ pub mod pcsc {
 		fn drop(&mut self) {
 			unsafe {
 				let ret1 = SCardDisconnect(self.card_handle, SCARD_LEAVE_CARD as u64);
-		        println!("Disconnect ![{}:{}]", self.context, ret1);
+		        trace!("Disconnect ![{}:{}]", self.context, ret1);
 				let ret2 = SCardReleaseContext(self.context);
-		        println!("Dropping Context ![{}:{}]", self.context, ret2);
+		        trace!("Dropping Context ![{}:{}]", self.context, ret2);
 		    }
 	    }
 	}	

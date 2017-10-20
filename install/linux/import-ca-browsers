@@ -1,0 +1,37 @@
+#!/bin/bash -x
+# Script to import the generated CA certificate of eidonkey into Firefox and other truststores
+# certutil of nss must be present on the system
+
+wait_file() {
+  local file="$1"; shift
+  local wait_seconds="${1:-10}"; shift # 10 seconds as default timeout
+
+  until test $((wait_seconds--)) -eq 0 -o -f "$file" ; do sleep 1; done
+
+  ((++wait_seconds))
+}
+
+cacert_crt=/opt/eidonkey/cacert.crt
+
+wait_file "$cacert_crt" 5 && {
+	# Chrome/linux browser keychain
+	# Remove your old CA Certificate
+	certutil -D -n "My eidonkey CA" -d sql:"${HOME}/.pki/nssdb" 2>&1 >/dev/null
+	# Add your old CA Certificate
+	certutil -A -n "My eidonkey CA" -t Cc,, -i $cacert_crt -d sql:"${HOME}/.pki/nssdb" 2>&1 >/dev/null
+
+	# Add to Firefox keystore
+	# package libnss3-tools has to be installed
+	for dir in ${HOME}/.mozilla/firefox/*
+	do
+		if [ -d ${dir} ] 2>&1 >/dev/null
+		then
+			if [ ${dir: -8} == ".default" ] 2>&1 >/dev/null
+			then
+				# ignore: remove certificate gives error SEC_ERROR_LEGACY_DATABASE, when certificate not found
+				certutil -D -n "My eidonkey CA" -d "${dir}" 2>&1 >/dev/null
+				certutil -A -n "My eidonkey CA" -t Cc,, -i $cacert_crt -d "${dir}" 2>&1 >/dev/null
+			fi
+		fi
+	done
+}

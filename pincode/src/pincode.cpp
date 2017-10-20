@@ -1,38 +1,52 @@
 #include <stdio.h>
 #include <pincode.h>
 #include <PinCodeDlg.h>
+#include <SignPinCodeDlg.h>
 #include <wx/wx.h>
 #include <wx/init.h> 
 #include <wx/app.h>
 #include <wx/textdlg.h>
 
-wxDEFINE_EVENT(PINCODE_AUTH_DIALOG, wxCommandEvent);
-wxDEFINE_EVENT(PINCODE_SIGN_DIALOG, wxCommandEvent);
+wxDEFINE_EVENT(AUTHENTICATION_PIN_DIALOGS_TYPE, wxCommandEvent);
+wxDEFINE_EVENT(SIGNATURE_PIN_DIALOGS_TYPE, wxCommandEvent);
 
 class MyApp : public wxApp
 {
 private:
 	wxString pinCode;
+	long	 nbrRetries;
+	wxString hash;
 
 public:
+	void SetNbrRetries(long retries) {
+		this->nbrRetries = retries;
+	}
+
+	void SetHash(char *h) {
+		this->hash = h;
+	}
+
 	wxString GetPinCode() {
 		return pinCode;
 	}
 
 	virtual bool OnInit() {
+		nbrRetries = -1;
+
 	    if ( !wxApp::OnInit() )
 	        return false;
 
-	    Bind(PINCODE_AUTH_DIALOG, &MyApp::OnAuthPINCode, this, wxID_ANY);
-	    Bind(PINCODE_SIGN_DIALOG, &MyApp::OnSignPINCode, this, wxID_ANY);
+	    Bind(AUTHENTICATION_PIN_DIALOGS_TYPE, &MyApp::OnAuthenticationPINCode, this, wxID_ANY);
+	    Bind(SIGNATURE_PIN_DIALOGS_TYPE, &MyApp::OnSignaturePINCode, this, wxID_ANY);
+	    return true;
 	}
 
-	void OnAuthPINCode(wxCommandEvent& WXUNUSED(event)) {
+	void OnAuthenticationPINCode(wxCommandEvent& WXUNUSED(event)) {
 		pinCode.Clear();
 
 		wxWindow* parent = wxGetActiveWindow();
 
-		PinCodeDlg pinCodeDlg(parent, wxID_ANY, wxT("Authentication PIN"));
+		PinCodeDlg pinCodeDlg(parent, wxID_ANY, wxT("Authentication PIN code"), nbrRetries);
 		if (pinCodeDlg.ShowModal() == wxID_OK)
 		{
 			pinCode = pinCodeDlg.GetPassword();
@@ -44,15 +58,15 @@ public:
 		ExitMainLoop();
 	}
 
-	void OnSignPINCode(wxCommandEvent& WXUNUSED(event)) {
+	void OnSignaturePINCode(wxCommandEvent& WXUNUSED(event)) {
 		pinCode.Clear();
 
 		wxWindow* parent = wxGetActiveWindow();
 
-		PinCodeDlg pinCodeDlg(parent, wxID_ANY, wxT("Signing PIN"));
-		if (pinCodeDlg.ShowModal() == wxID_OK)
+		SignPinCodeDlg signPINCodeDlg(parent, wxID_ANY, wxT("Signature PIN code"), nbrRetries, hash);
+		if (signPINCodeDlg.ShowModal() == wxID_OK)
 		{
-			pinCode = pinCodeDlg.GetPassword();
+			pinCode = signPINCodeDlg.GetPassword();
 
 		}
 		if (parent) {
@@ -60,7 +74,6 @@ public:
 		}
 		ExitMainLoop();
 	}
-
 };
 
 IMPLEMENT_APP_NO_MAIN(MyApp)
@@ -81,7 +94,8 @@ unsigned long getAuthenticationPINCode(unsigned int nbrRetries, char *pincode, u
 	memset((void *)pincode, 0, *len);
 
 	// Call PIN Dialog
-	wxCommandEvent event(PINCODE_AUTH_DIALOG);
+	wxGetApp().SetNbrRetries(nbrRetries);
+	wxCommandEvent event(AUTHENTICATION_PIN_DIALOGS_TYPE);
 	wxPostEvent(&(wxGetApp()), event);
  	wxGetApp().MainLoop();
 
@@ -100,7 +114,7 @@ unsigned long getAuthenticationPINCode(unsigned int nbrRetries, char *pincode, u
 	return PINCODE_OK;
 }
 
-unsigned long getSigningPINCode(unsigned int nbrRetries, char *pincode, unsigned long *len) {
+unsigned long getSignaturePINCode(unsigned int nbrRetries, char *hash, char *pincode, unsigned long *len) {
 	wxString wx_pincode= "";
 
 	if ((*len == 0)||(pincode == NULL)) {
@@ -109,7 +123,9 @@ unsigned long getSigningPINCode(unsigned int nbrRetries, char *pincode, unsigned
 	memset((void *)pincode, 0, *len);
 
 	// Call PIN Dialog
-	wxCommandEvent event(PINCODE_SIGN_DIALOG);
+	wxGetApp().SetNbrRetries(nbrRetries);
+	wxGetApp().SetHash(hash);
+	wxCommandEvent event(SIGNATURE_PIN_DIALOGS_TYPE);
 	wxPostEvent(&(wxGetApp()), event);
  	wxGetApp().MainLoop();
 

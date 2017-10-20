@@ -43,3 +43,19 @@ openssl req -x509 -sha256 -newkey rsa:2048 -keyout certificate.key -out certific
 or
 eidonkey --gencert
 it will generate cert.crt and cert.key (unprotected private key) in the current directory, which can directly be used by the service.
+
+TODO
+----
+1. Pinpad reader support
+2. Eid Viewer as an Electron application
+3. Porting to Windows
+
+To compile
+----------
+- wxWidgets 3.1 development files must be pre installed
+- openssl-1.0.1h development files must be pre installed
+- libpcsclite development files must be pre installed
+- nss certutil from firefox is in binary form in the Git repo
+- clone rust-openssl from ddt-tdd and checkout version 0.7.14.1
+
+But now the CA and SSL certificates never leave the application.

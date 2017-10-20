@@ -1,3 +1,6 @@
+#[macro_use]
+extern crate log;
+extern crate env_logger;
 extern crate hyper;
 extern crate openssl;
 extern crate getopts;
@@ -17,32 +20,40 @@ use hyper::server::{Handler,Server,Request,Response};
 use hyper::header::{AccessControlAllowOrigin, ContentLength, ContentType};
 use hyper::uri::RequestUri;
 use hyper::status::StatusCode;
-use hyper::net::Openssl;
 
-use openssl::ssl::{SslMethod, SslContext};
-use openssl::nid::Nid;
-use openssl::x509::{X509Generator, X509FileType, X509};
-use openssl::x509::extension::{Extension, KeyUsageOption, ExtKeyUsageOption};
-use openssl::crypto::hash::Type;
-use openssl::crypto::pkey::PKey;
+use openssl::asn1::Asn1Time;
+use openssl::nid;
+use openssl::bn::{BigNum, MSB_MAYBE_ZERO};
+use openssl::ssl::{Ssl, SslMethod, SslContext};
+use openssl::x509::{X509Builder, X509Name, X509FileType, X509, X509Ref};
+use openssl::x509::extension::{Extension, BasicConstraints, KeyUsage, ExtendedKeyUsage, SubjectKeyIdentifier, AuthorityKeyIdentifier};
+use openssl::hash::MessageDigest;
+use openssl::pkey::PKey;
+use openssl::rsa::Rsa;
 
 use getopts::Options;
 
 use data_encoding::{base64, hex};
 
-use eidonkey::EIdDonkeyCard;
+use eidonkey::{ EIdDonkeyCard, EIDONKEY_WRONG_PIN_RETRIES_X };
 
 mod pin;
 use pin::*;
 
-pub const PARSING_REQUEST_ERROR: u32 	= 0x90020001; 
-pub const MISSING_PARAMETERS: u32 		= 0x90020002; 
+mod https;
+use https::*;
+
+pub const PARSING_REQUEST_ERROR: u32 	= 0x90020001;
+pub const MISSING_PARAMETERS: u32 		= 0x90020002;
+pub const INCORRECT_PARAMETERS: u32 	= 0x90020003; 
+pub const PINCODE_FAILED: u32 			= 0x90020004; 
+pub const PINCODE_CANCELLED: u32		= 0x90020005; 
 
 fn version() -> String {
 	"{\"result\":\"ok\",\"version\":\"0.1.0\"}".to_string()
 }
 
-fn error_response(error_code: u32) -> String {
+fn error_card_response(error_code: u32) -> String {
 	error_response_with_msg(error_code, EIdDonkeyCard::get_error_message(error_code))
 }
 
@@ -55,6 +66,7 @@ fn error_response_with_msg(error_code: u32, error_msg: String) -> String {
 
 fn identity(eid_card: EIdDonkeyCard) -> String {
 
+	trace!("Read Identity file");
 	let identity_res = eid_card.read_identity();
 	match identity_res {
 		Ok(identity) => format!("{{\"result\":\"ok\",\
@@ -99,7 +111,7 @@ fn identity(eid_card: EIdDonkeyCard) -> String {
 		 							base64::encode(&identity.identity),
 		 							base64::encode(&identity.signature)
 		 							),
-		Err(e) => error_response(e)
+		Err(e) => error_card_response(e)
 	}
 }
 
@@ -121,7 +133,7 @@ fn address(eid_card: EIdDonkeyCard) -> String {
 			address.city,
 			base64::encode(&address.address),
 			base64::encode(&address.signature)),
-		Err(e) => error_response(e)
+		Err(e) => error_card_response(e)
 	}	
 }
 
@@ -131,7 +143,7 @@ fn photo(eid_card: EIdDonkeyCard) -> String {
 	match photo_res {
 		Ok(photo) => format!("{{\"result\":\"ok\",\"photo\":\"{}\"}}", 
 	 							base64::encode(&photo)),
-		Err(e) => error_response(e)
+		Err(e) => error_card_response(e)
 	}	
 }
 
@@ -148,49 +160,7 @@ fn status(eid_card: EIdDonkeyCard) -> String {
 	 							status.reader_name,
 	 							status.protocol,
 	 							base64::encode(&status.atr)),
-		Err(e) => error_response(e)
-	}	
-}
-
-fn signature_auth(pin_code: String, eid_card: EIdDonkeyCard, params: &str) -> String {
-	let split_params = params.split("=");
-	let vec_params : Vec<&str> = split_params.collect();
-
-	if vec_params.len() <= 1 {
-		return error_response_with_msg(MISSING_PARAMETERS, "Missing Parameters".to_string())
-	}
-
-	println!("{:?}", vec_params[1]);
-	// TODO: fix unwrap
-	let data = hex::decode(vec_params[1].to_uppercase().as_bytes()).unwrap();
-	println!("Start signing");
-	let signature_res = eid_card.sign_with_auth_cert(pin_code, &data);
-
-	match signature_res {
-		Ok(signature) => format!("{{\"result\":\"ok\",\"signature\": \"{}\"}}", 
-	 							base64::encode(&signature)),
-		Err(e) => error_response(e)
-	}	
-}
-
-fn signature_sign(pin_code: String, eid_card: EIdDonkeyCard, params: &str) -> String {
-	let split_params = params.split("=");
-	let vec_params : Vec<&str> = split_params.collect();
-
-	if vec_params.len() <= 1 {
-		return error_response_with_msg(MISSING_PARAMETERS, "Missing Parameters".to_string())
-	}
-
-	println!("{:?}", vec_params[1]);
-	// TODO: fix unwrap
-	let data = hex::decode(vec_params[1].to_uppercase().as_bytes()).unwrap();
-	println!("Start signing");
-	let signature_res = eid_card.sign_with_sign_cert(pin_code, &data);
-
-	match signature_res {
-		Ok(signature) => format!("{{\"result\":\"ok\",\"signature\": \"{}\"}}", 
-	 							base64::encode(&signature)),
-		Err(e) => error_response(e)
+		Err(e) => error_card_response(e)
 	}	
 }
 
@@ -200,7 +170,7 @@ fn certificates_authentication(eid_card: EIdDonkeyCard) -> String {
 	match cert_res {
 		Ok(cert) => format!("{{\"result\":\"ok\",\"certificate\":\"{}\"}}", 
 	 							base64::encode(&cert)),
-		Err(e) => error_response(e)
+		Err(e) => error_card_response(e)
 	}	
 }
 
@@ -210,7 +180,7 @@ fn certificates_signing(eid_card: EIdDonkeyCard) -> String {
 	match cert_res {
 		Ok(cert) => format!("{{\"result\":\"ok\",\"certificate\":\"{}\"}}", 
 	 							base64::encode(&cert)),
-		Err(e) => error_response(e)
+		Err(e) => error_card_response(e)
 	}	
 }
 
@@ -220,7 +190,7 @@ fn certificates_rootca(eid_card: EIdDonkeyCard) -> String {
 	match cert_res {
 		Ok(cert) => format!("{{\"result\":\"ok\",\"certificate\":\"{}\"}}", 
 	 							base64::encode(&cert)),
-		Err(e) => error_response(e)
+		Err(e) => error_card_response(e)
 	}	
 }
 
@@ -230,7 +200,7 @@ fn certificates_ca(eid_card: EIdDonkeyCard) -> String {
 	match cert_res {
 		Ok(cert) => format!("{{\"result\":\"ok\",\"certificate\":\"{}\"}}", 
 	 							base64::encode(&cert)),
-		Err(e) => error_response(e)
+		Err(e) => error_card_response(e)
 	}	
 }
 
@@ -240,105 +210,192 @@ fn certificates_rrn(eid_card: EIdDonkeyCard) -> String {
 	match cert_res {
 		Ok(cert) => format!("{{\"result\":\"ok\",\"certificate\":\"{}\"}}", 
 	 							base64::encode(&cert)),
-		Err(e) => error_response(e)
+		Err(e) => error_card_response(e)
 	}	
 }
 
 fn connect_card() -> Result<EIdDonkeyCard, u32> {
-	let reader = EIdDonkeyCard::list_readers();
-	match reader {
-		Ok(readers) =>  EIdDonkeyCard::new(&readers[0]),
-		Err(e) => Err(e)
-	}
+	EIdDonkeyCard::new()
 }
 
 // Library of core handler 
-const SERVER_CA_CERTIFICATE_FILE: &'static str = "cacert.crt";
-const SERVER_CERTIFICATE_FILE: &'static str = "cert.crt";
-const SERVER_PRIVATE_KEY_FILE: &'static str = "cert.key";
+const SERVER_CA_CERTIFICATE_FILE: &'static str = "tmpcacert.crt";
+const SERVER_CERTIFICATE_FILE: &'static str = "tmpcert.crt";
+
+struct RequestPinCode {
+	auth: bool,
+	nbr_retries: i32,
+	data: String
+}
+
+struct ResponsePinCode {
+	code: u32,
+	data: String
+}
 
 struct SenderHandler {
-    sender: Mutex<SyncSender<u32>>,
-    receiver: Mutex<Receiver<String>>
+    sender: Mutex<SyncSender<RequestPinCode>>,
+    receiver: Mutex<Receiver<ResponsePinCode>>
 }
 
 impl SenderHandler {
+
+	fn signature_auth(&self, eid_card: EIdDonkeyCard, params: &str) -> String {
+		let split_params = params.split("=");
+		let vec_params : Vec<&str> = split_params.collect();
+		let mut retries: i32 = -1;
+
+		if vec_params.len() <= 1 {
+			return error_response_with_msg(MISSING_PARAMETERS, "Missing Parameters".to_string())
+		}
+
+		loop {
+			self.sender.lock().unwrap().send(RequestPinCode {auth: true, nbr_retries: retries as i32, data: vec_params[1].to_uppercase()}).unwrap();
+			let pincode = self.receiver.lock().unwrap().recv().unwrap();
+
+			if pincode.code == 0 {
+				trace!("signature_auth: Authentication of [{:?}]", vec_params[1]);
+				let data_res = hex::decode(vec_params[1].to_uppercase().as_bytes());
+				match data_res {
+					Ok(data) => {
+						trace!("signature_auth: Start signing");
+						let signature_res = eid_card.sign_with_auth_cert(pincode.data, &data);
+
+						match signature_res {
+							Ok(signature) => return format!("{{\"result\":\"ok\",\"signature\": \"{}\"}}", 
+						 								base64::encode(&signature)),
+							Err(e) => {
+								if (e ^ EIDONKEY_WRONG_PIN_RETRIES_X) > 0 {
+									retries = (e ^ EIDONKEY_WRONG_PIN_RETRIES_X) as i32;
+								}	
+								else {
+									return error_card_response(e)
+								}
+							}
+						}
+					},
+					Err(_) => return error_response_with_msg(INCORRECT_PARAMETERS, "Incorrect Parameters".to_string())
+				}
+			}
+			else {
+				return error_response_with_msg(PINCODE_FAILED, pincode.data.to_string())
+			}
+		}
+	}
+
+	fn signature_sign(&self, eid_card: EIdDonkeyCard, params: &str) -> String {
+		let split_params = params.split("=");
+		let vec_params : Vec<&str> = split_params.collect();
+		let mut retries: i32 = -1;
+
+		if vec_params.len() <= 1 {
+			return error_response_with_msg(MISSING_PARAMETERS, "Missing Parameters".to_string())
+		}
+
+		loop {
+			self.sender.lock().unwrap().send(RequestPinCode {auth: false, nbr_retries: retries, data: vec_params[1].to_uppercase()}).unwrap();
+			let pincode = self.receiver.lock().unwrap().recv().unwrap();
+
+			if pincode.code == 0 {
+				trace!("signature_sign: Signing of [{:?}]", vec_params[1]);
+				let data_res = hex::decode(vec_params[1].to_uppercase().as_bytes());
+				match data_res {
+					Ok(data) => {
+						trace!("signature_auth: Start signing");
+						let signature_res = eid_card.sign_with_sign_cert(pincode.data, &data);
+
+						match signature_res {
+							Ok(signature) => return format!("{{\"result\":\"ok\",\"signature\": \"{}\"}}", 
+						 							     base64::encode(&signature)),
+							Err(e) => {
+								if (e ^ EIDONKEY_WRONG_PIN_RETRIES_X) > 0 {
+									retries = (e ^ EIDONKEY_WRONG_PIN_RETRIES_X) as i32;
+								}	
+								else {
+									return error_card_response(e)
+								}
+							}
+						}				
+					},
+					Err(_) => return error_response_with_msg(INCORRECT_PARAMETERS, "Incorrect Parameters".to_string())
+				}
+			}
+			else {
+				return error_response_with_msg(PINCODE_FAILED, pincode.data.to_string())
+			}
+		}
+	}
+
 	fn call_route_get_handler(&self, uri: &str, params: &str) -> Option<Vec<u8>> {
 
+    trace!("Handling /{} request", uri);
+		
 		match uri {
 		    "/version" => Some(version().into_bytes()),
 		    "/identity" => { 
 		    	match connect_card() {
 			    	Ok(card) => Some(identity(card).into_bytes()),
-			    	Err(e) => Some(error_response(e).into_bytes())
+			    	Err(e) => Some(error_card_response(e).into_bytes())
 		    	}
 		    },
 		    "/address" => {
 		    	match connect_card() {
 		    		Ok(card) => Some(address(card).into_bytes()),
-			    	Err(e) => Some(error_response(e).into_bytes())
+			    	Err(e) => Some(error_card_response(e).into_bytes())
 		    	}
 		    },
 		    "/photo" => {
 		    	match connect_card() {
 		    		Ok(card) => Some(photo(card).into_bytes()),
-			    	Err(e) => Some(error_response(e).into_bytes())
+			    	Err(e) => Some(error_card_response(e).into_bytes())
 		    	} 	
 		    },
 		    "/status" => {
 		    	match connect_card() {
 		    		Ok(card) => Some(status(card).into_bytes()),
-			    	Err(e) => Some(error_response(e).into_bytes())
+			    	Err(e) => Some(error_card_response(e).into_bytes())
 		    	}	    	
 		    },
 		    "/signature/authentication" => {
 		    	match connect_card() {
-		    		Ok(card) => {
-		    			self.sender.lock().unwrap().send(0).unwrap();
-		    			let pincode = self.receiver.lock().unwrap().recv().unwrap();
-		    			Some(signature_auth(pincode, card, params).into_bytes())
-		    		},
-			    	Err(e) => Some(error_response(e).into_bytes())
+		    		Ok(card) => Some(self.signature_auth(card, params).into_bytes()),
+			    	Err(e) => Some(error_card_response(e).into_bytes())
 		    	}
 		    },
 		    "/signature/signing" => {
 		    	match connect_card() {
-		    		Ok(card) => {
-		    			self.sender.lock().unwrap().send(10).unwrap();
-		    			let pincode = self.receiver.lock().unwrap().recv().unwrap();
-		    			Some(signature_sign(pincode, card, params).into_bytes())
-		    		},
-			    	Err(e) => Some(error_response(e).into_bytes())
+		    		Ok(card) => Some(self.signature_sign(card, params).into_bytes()),
+			    	Err(e) => Some(error_card_response(e).into_bytes())
 		    	}
 		    },
 		    "/certificates/authentication" => {
 		    	match connect_card() {
 		    		Ok(card) => Some(certificates_authentication(card).into_bytes()),
-			    	Err(e) => Some(error_response(e).into_bytes())
+			    	Err(e) => Some(error_card_response(e).into_bytes())
 		    	}
 		    },
 		    "/certificates/signing" => {
 		    	match connect_card() {
 		    		Ok(card) => Some(certificates_signing(card).into_bytes()),
-			    	Err(e) => Some(error_response(e).into_bytes())
+			    	Err(e) => Some(error_card_response(e).into_bytes())
 		    	}
 		    },
 		    "/certificates/rootca" => {
 		    	match connect_card() {
 		    		Ok(card) => Some(certificates_rootca(card).into_bytes()),
-			    	Err(e) => Some(error_response(e).into_bytes())
+			    	Err(e) => Some(error_card_response(e).into_bytes())
 		    	}
 		    },
 		    "/certificates/ca" => {
 		    	match connect_card() {
 		    		Ok(card) => Some(certificates_ca(card).into_bytes()),
-			    	Err(e) => Some(error_response(e).into_bytes())
+			    	Err(e) => Some(error_card_response(e).into_bytes())
 		    	}
 		    },
 		    "/certificates/rrn" => {
 		    	match connect_card() {
 		    		Ok(card) => Some(certificates_rrn(card).into_bytes()),
-			    	Err(e) => Some(error_response(e).into_bytes())
+			    	Err(e) => Some(error_card_response(e).into_bytes())
 		    	}
 		    },
 		    _ => None,
@@ -350,7 +407,7 @@ impl SenderHandler {
 	 	match req.uri {
 	 		RequestUri::AbsolutePath(ref uri) => {
 
-		 		println!("Incoming URI [{}]", uri);
+		 		trace!("Incoming URI [{}]", uri);
 				let split_uri = uri.split("?");
 				let parts_uri: Vec<&str> = split_uri.collect();
 				let params = if parts_uri.len() > 1 { parts_uri[1] } else { "" };
@@ -390,20 +447,10 @@ impl Handler for SenderHandler {
 
 }
 
-// Thighten the SSL server protocols: TLS1.2 only
-// AES256-GCM-SHA384:AES256-SHA256:AES128-GCM-SHA256:AES128-GCM-SHA256
-// ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-SHA384:ECDHE-RSA-AES128-SHA256
-// AES256-GCM-SHA384:AES256-SHA256:AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-SHA384:ECDHE-RSA-AES256-SHA384:ECDHE-ECDSA-AES128-SHA256:ECDHE-RSA-AES128-SHA256
-// TLS 1.1
-// AES128-SHA:AES256-SHA:DH-RSA-AES128-SHA:DH-RSA-AES256-SHA
-fn start_server(http_req: Mutex<SyncSender<u32>>, http_resp: Mutex<Receiver<String>>) {
-	let (cert, pkey) = generate_signed_certificate();
+fn start_server(http_req: Mutex<SyncSender<RequestPinCode>>, http_resp: Mutex<Receiver<ResponsePinCode>>) {
+	let (cert, pkey, ca) = generate_signed_certificate();
 
-	let mut ssl_ctx = SslContext::new(SslMethod::Tlsv1_1).unwrap();
-	ssl_ctx.set_cipher_list("AES128-SHA:AES256-SHA:DH-RSA-AES128-SHA:DH-RSA-AES256-SHA");
-    ssl_ctx.set_certificate(&cert);
-    ssl_ctx.set_private_key(&pkey).unwrap();
-    let ssl = Openssl { context: Arc::new(ssl_ctx) };
+    let ssl = HttpsServer::from_memory(&pkey, &cert, &ca).unwrap();
 	Server::https("127.0.0.1:10443", ssl).unwrap().handle(SenderHandler {
 		sender: http_req,
 		receiver: http_resp
@@ -423,48 +470,112 @@ fn register_eidonkey() {
 	                     .unwrap_or_else(|e| { panic!("failed to execute process: {}", e) });
 }
 
+fn pkey() -> PKey {
+    let rsa = Rsa::generate(2048).unwrap();
+    PKey::from_rsa(rsa).unwrap()
+}
+
 /// Generate self-signed certificate command
 /// It creates 2 files in the current directory:
-/// - cert.pem : self-signed certificate
-fn generate_signed_certificate<'ctx>() -> (X509<'ctx>, PKey) {
+fn generate_signed_certificate() -> (X509, PKey, X509) {
 	
 	// Create CA certificate
-	let ca_gen = X509Generator::new()
-		.set_bitlength(2048)
-		.set_valid_period(365*10)
-		.add_name("CN".to_owned(), "My eidonkey CA".to_owned())
-		.set_sign_hash(Type::SHA256)
-		.add_extension(Extension::KeyUsage(vec![KeyUsageOption::KeyCertSign,KeyUsageOption::CRLSign]))
-		.add_extension(Extension::OtherNid(Nid::BasicConstraints,"critical,CA:TRUE".to_owned()));
+	let ca_pkey = pkey();
 
-	let (ca, ca_pkey) = ca_gen.generate().unwrap();
+	let mut ca_gen = X509::builder().unwrap();
+	ca_gen.set_version(2).unwrap();
+
+    let mut ca_name = X509Name::builder().unwrap();
+    ca_name.append_entry_by_nid(nid::COMMONNAME, "My eidonkey CA").unwrap();
+    let ca_name = ca_name.build();
+    ca_gen.set_subject_name(&ca_name).unwrap();
+    ca_gen.set_issuer_name(&ca_name).unwrap();
+
+	ca_gen.set_not_before(&Asn1Time::days_from_now(0).unwrap());
+    ca_gen.set_not_after(&Asn1Time::days_from_now(365*10).unwrap());
+
+	let mut serial = BigNum::new().unwrap();
+    serial.rand(128, MSB_MAYBE_ZERO, false).unwrap();
+    ca_gen.set_serial_number(&serial.to_asn1_integer().unwrap()).unwrap();
+
+    ca_gen.set_pubkey(&ca_pkey).unwrap();
+
+    let basic_constraints = BasicConstraints::new().critical().ca().build().unwrap();
+    ca_gen.append_extension(basic_constraints).unwrap();
+
+    let ca_key_usage = KeyUsage::new().key_cert_sign().crl_sign().build().unwrap();
+    ca_gen.append_extension(ca_key_usage).unwrap();
+    
+    let ca_subject_key_identifier = SubjectKeyIdentifier::new()
+        .build(&ca_gen.x509v3_context(None, None))
+        .unwrap();
+    ca_gen.append_extension(ca_subject_key_identifier).unwrap();
+
+    let ca_authority_key_identifier = AuthorityKeyIdentifier::new()
+        .keyid(true)
+        .build(&ca_gen.x509v3_context(None, None))
+        .unwrap();
+    let cert_authority_key_identifier = AuthorityKeyIdentifier::new()
+        .keyid(true)
+        .build(&ca_gen.x509v3_context(None, None))
+        .unwrap();    ca_gen.append_extension(ca_authority_key_identifier).unwrap();
+
+    ca_gen.sign(&ca_pkey, MessageDigest::sha256()).unwrap();
+
+    let ca = ca_gen.build();
 
 	let ca_path = SERVER_CA_CERTIFICATE_FILE;
 	let mut file = File::create(ca_path).unwrap();
-	assert!(ca.write_pem(&mut file).is_ok());
+	assert!(file.write_all(&ca.to_pem().unwrap()).is_ok());
 
 	// local host generator
-	let cert_gen = X509Generator::new()
-		.set_bitlength(2048)
-		.set_valid_period(365*10)
-		.add_name("CN".to_owned(), "localhost".to_owned())
-		.set_sign_hash(Type::SHA256)
-		.set_ca(&ca, &ca_pkey)
-		.add_extension(Extension::KeyUsage(vec![KeyUsageOption::DigitalSignature,KeyUsageOption::KeyEncipherment,KeyUsageOption::DataEncipherment]))
-		.add_extension(Extension::ExtKeyUsage(vec![ExtKeyUsageOption::ServerAuth]));
+	let cert_pkey = pkey();
+	let mut cert_gen = X509::builder().unwrap();
+	cert_gen.set_version(2).unwrap();
 
-	let (cert, pkey) = cert_gen.generate().unwrap();
+    let mut cert_name = X509Name::builder().unwrap();
+    cert_name.append_entry_by_nid(nid::COMMONNAME, "localhost").unwrap();
+    let cert_name = cert_name.build();
+    cert_gen.set_subject_name(&cert_name).unwrap();
+    cert_gen.set_issuer_name(&ca_name).unwrap();
+
+	cert_gen.set_not_before(&Asn1Time::days_from_now(0).unwrap());
+    cert_gen.set_not_after(&Asn1Time::days_from_now(365*10).unwrap());
+
+    serial.rand(128, MSB_MAYBE_ZERO, false).unwrap();
+    cert_gen.set_serial_number(&serial.to_asn1_integer().unwrap()).unwrap();
+    
+    cert_gen.set_pubkey(&cert_pkey).unwrap();
+
+    let cert_key_usage = KeyUsage::new().digital_signature().key_encipherment().data_encipherment().build().unwrap();
+    cert_gen.append_extension(cert_key_usage).unwrap();
+    
+    let cert_subject_key_identifier = SubjectKeyIdentifier::new()
+        .build(&cert_gen.x509v3_context(None, None))
+        .unwrap();
+    cert_gen.append_extension(cert_subject_key_identifier).unwrap();
+
+    cert_gen.append_extension(cert_authority_key_identifier).unwrap();
+
+    let ext_key_usage = ExtendedKeyUsage::new().server_auth().build().unwrap();
+    cert_gen.append_extension(ext_key_usage).unwrap();
+
+    cert_gen.sign(&ca_pkey, MessageDigest::sha256()).unwrap();
+
+    let cert = cert_gen.build();
 
 	let cert_path = SERVER_CERTIFICATE_FILE;
 	let mut file = File::create(cert_path).unwrap();
-	assert!(cert.write_pem(&mut file).is_ok());
+	assert!(file.write_all(&cert.to_pem().unwrap()).is_ok());
 
 	register_eidonkey();
 
-	(cert, pkey)
+	(cert, cert_pkey, ca)
 }
 
 fn main() {
+	env_logger::init().unwrap();
+
 	let args: Vec<String> = env::args().collect();
 	let program = args[0].clone();
 
@@ -478,8 +589,8 @@ fn main() {
 	}
 
 	// Start service
-	let (req_tx, req_rx) = sync_channel::<u32>(0);
-	let (resp_tx, resp_rx) = sync_channel::<String>(0);
+	let (req_tx, req_rx) = sync_channel::<RequestPinCode>(0);
+	let (resp_tx, resp_rx) = sync_channel::<ResponsePinCode>(0);
 
 	let http_child = thread::spawn(move || {
 		start_server(Mutex::new(req_tx), Mutex::new(resp_rx));
@@ -488,17 +599,35 @@ fn main() {
 	init_pincode();
 	
 	loop {
-		let pin_code: String;
-		println!("Waiting for PINcode");
-		let req = req_rx.recv().unwrap();
-		println!("Request PIN code {}", req);
-		if req < 10 {
-			pin_code = get_pincode_auth(req).unwrap();
+		let pin_code: ResponsePinCode;
+		let pin_code_res: Result<String, u32>;
+		trace!("Waiting for PINcode");
+		let req  = req_rx.recv().unwrap();
+		trace!("Request PIN code nbr retries: {}", req.nbr_retries);
+		trace!("Request PIN code data: {}", req.data);
+		if req.auth == true {
+			trace!("Request PIN for authentication: {}", req.nbr_retries);
+			pin_code_res = get_pincode_auth(req.nbr_retries);
 		}
 		else {
-			pin_code = get_pincode_sign(req - 10).unwrap();
+			trace!("Request PIN for signature: {}", req.nbr_retries);
+			pin_code_res = get_pincode_sign(req.nbr_retries, req.data);
 		}
-		println!("Sending PIN code {}", pin_code);
+		match pin_code_res {
+			Ok(pin) => {
+				pin_code = ResponsePinCode { code:0, data:pin }
+			},
+			Err(code) => {
+				trace!("Request PIN failed code: {}", code);
+				if code == 101 {
+					pin_code = ResponsePinCode { code:PINCODE_FAILED, data:"Getting the pincode failed (Invalid parameters).".to_string() }
+				}
+				else {
+					pin_code = ResponsePinCode { code:PINCODE_CANCELLED, data:"PIN code was not entered.".to_string() }
+				}
+			}
+		}
+		trace!("Sending PIN code {:?}:{:?}", pin_code.code, pin_code.data);
 		resp_tx.send(pin_code).unwrap();
 	}
 
