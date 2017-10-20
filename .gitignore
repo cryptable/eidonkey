@@ -1,5 +1,7 @@
 # target directory compiled targets
 target
+build
+
 # cargo lock file
 Cargo.lock
 
