@@ -1,7 +1,6 @@
 #[macro_use]
 extern crate log;
 extern crate env_logger;
-extern crate hyper;
 extern crate openssl;
 extern crate getopts;
 extern crate data_encoding;
@@ -25,9 +24,6 @@ use eidonkey::{ EIdDonkeyCard, EIDONKEY_WRONG_PIN_RETRIES_X };
 
 mod pin;
 use pin::*;
-
-mod https;
-use https::*;
 
 pub const PARSING_REQUEST_ERROR: u32 	= 0x90020001;
 pub const MISSING_PARAMETERS: u32 		= 0x90020002;
@@ -304,7 +300,7 @@ fn signature_sign(eid_card: EIdDonkeyCard, params: &str) -> String {
 
 fn call_route_get_handler(uri: &str, params: &str) -> Option<Vec<u8>> {
 
-  	trace!("Handling /{} request", uri);
+  trace!("Handling /{} request", uri);
 	match uri {
 	    "/version" => Some(version().into_bytes()),
 	    "/identity" => { 
@@ -402,7 +398,7 @@ fn main() {
 
 	// Call route handler
 	let mut uri = String::new();
-	io::stdin().read_to_string(&mut uri)?;
+	io::stdin().read_to_string(&mut uri);
 
 	trace!("Incoming URI [{}]", uri);
 	let split_uri = uri.split("?");
