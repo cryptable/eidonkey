@@ -8,13 +8,7 @@ extern crate eidonkey;
 
 use std::io::Write;
 use std::env;
-use std::fs::File;
-use std::process::Command;
-use std::sync::{Arc, Mutex};
-use std::sync::mpsc::sync_channel;
-use std::sync::mpsc::{SyncSender, Receiver};
-use std::thread;
-use std::io::{self, Read, Write};
+use std::io::{self, Read};
 
 use getopts::Options;
 
@@ -222,16 +216,16 @@ fn signature_auth(eid_card: EIdDonkeyCard, params: &str) -> String {
 	}
 
 	loop {
-		self.sender.lock().unwrap().send(RequestPinCode {auth: true, nbr_retries: retries as i32, data: vec_params[1].to_uppercase()}).unwrap();
-		let pincode = self.receiver.lock().unwrap().recv().unwrap();
 
-		if pincode.code == 0 {
+		let pincode = get_pincode_sign(5, "Test".to_string()).unwrap();
+
+		if pincode.len() == 0 {
 			trace!("signature_auth: Authentication of [{:?}]", vec_params[1]);
 			let data_res = hex::decode(vec_params[1].to_uppercase().as_bytes());
 			match data_res {
 				Ok(data) => {
 					trace!("signature_auth: Start signing");
-					let signature_res = eid_card.sign_with_auth_cert(pincode.data, &data);
+					let signature_res = eid_card.sign_with_auth_cert(pincode, &data);
 
 					match signature_res {
 						Ok(signature) => return format!("{{\"result\":\"ok\",\"signature\": \"{}\"}}", 
@@ -250,7 +244,7 @@ fn signature_auth(eid_card: EIdDonkeyCard, params: &str) -> String {
 			}
 		}
 		else {
-			return error_response_with_msg(PINCODE_FAILED, pincode.data.to_string())
+			return error_response_with_msg(PINCODE_FAILED, pincode)
 		}
 	}
 }
@@ -265,16 +259,16 @@ fn signature_sign(eid_card: EIdDonkeyCard, params: &str) -> String {
 	}
 
 	loop {
-		self.sender.lock().unwrap().send(RequestPinCode {auth: false, nbr_retries: retries, data: vec_params[1].to_uppercase()}).unwrap();
-		let pincode = self.receiver.lock().unwrap().recv().unwrap();
 
-		if pincode.code == 0 {
+		let pincode = get_pincode_sign(5, "Test".to_string()).unwrap();
+
+		if pincode.len() == 0 {
 			trace!("signature_sign: Signing of [{:?}]", vec_params[1]);
 			let data_res = hex::decode(vec_params[1].to_uppercase().as_bytes());
 			match data_res {
 				Ok(data) => {
 					trace!("signature_auth: Start signing");
-					let signature_res = eid_card.sign_with_sign_cert(pincode.data, &data);
+					let signature_res = eid_card.sign_with_sign_cert(pincode, &data);
 
 					match signature_res {
 						Ok(signature) => return format!("{{\"result\":\"ok\",\"signature\": \"{}\"}}", 
@@ -293,7 +287,7 @@ fn signature_sign(eid_card: EIdDonkeyCard, params: &str) -> String {
 			}
 		}
 		else {
-			return error_response_with_msg(PINCODE_FAILED, pincode.data.to_string())
+			return error_response_with_msg(PINCODE_FAILED, pincode)
 		}
 	}
 }
@@ -329,13 +323,13 @@ fn call_route_get_handler(uri: &str, params: &str) -> Option<Vec<u8>> {
 	    },
 	    "/signature/authentication" => {
 	    	match connect_card() {
-	    		Ok(card) => Some(self.signature_auth(card, params).into_bytes()),
+	    		Ok(card) => Some(signature_auth(card, params).into_bytes()),
 		    	Err(e) => Some(error_card_response(e).into_bytes())
 	    	}
 	    },
 	    "/signature/signing" => {
 	    	match connect_card() {
-	    		Ok(card) => Some(self.signature_sign(card, params).into_bytes()),
+	    		Ok(card) => Some(signature_sign(card, params).into_bytes()),
 		    	Err(e) => Some(error_card_response(e).into_bytes())
 	    	}
 	    },
@@ -405,24 +399,20 @@ fn main() {
 	let parts_uri: Vec<&str> = split_uri.collect();
 	let params = if parts_uri.len() > 1 { parts_uri[1] } else { "" };
 
-	let body = call_route_get_handler(parts_uri[0], params);
-	match body {
-	 	Some(ref data) => {
-	 		// Headers when call succeeded
-			res.headers_mut().set(ContentType::json());
-			res.headers_mut().set(ContentLength(data.len() as u64));
-			let mut res = res.start().unwrap();
-			res.write_all(data).unwrap();
-		},
-	 	None => *res.status_mut() = StatusCode::NotFound
-	}
-
 	let stdout = io::stdout();
 	let mut handle = stdout.lock();
 
-	handle.write(b"hello world")?;
+	let body = call_route_get_handler(parts_uri[0], params);
+	match body {
+	 	Some(ref data) => {
+
+			handle.write(data);
+		},
+		None => {
+			handle.write(b"{ error: 'error'}");			
+		}
+	}
+
 	
 	close_pincode();
-
-	let res = http_child.join();
 }

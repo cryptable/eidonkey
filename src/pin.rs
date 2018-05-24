@@ -2,7 +2,6 @@ extern crate serde_json;
 
 use self::serde_json::Value;
 
-use std::ptr;
 use std::process::Command;
 
 pub const PINCODE_OK: u32				= 0;
@@ -97,11 +96,10 @@ pub fn get_pincode_sign(nbr_retries: i32, hash: String) -> Result<String, u32> {
 
 #[cfg(test)]
 mod tests {
-	use super::get_pincode;
 
 	#[test]
 	fn test_pincode() {
-		let res = get_pincode(0);
+		let res = get_pincode_auth(0, "Test");
 
 		match res {
 			Ok(pin) => assert_eq!("1234", pin),

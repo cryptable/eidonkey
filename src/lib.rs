@@ -5,7 +5,6 @@ extern crate libc;
 extern crate lazy_static;
 mod card;
 use std::io::prelude::*;
-use std::fs::File;
 use std::sync::{Mutex, Arc};
 use std::sync::MutexGuard;
 use std::{mem};
@@ -846,9 +845,10 @@ impl EIdDonkeyCard {
 #[cfg(test)]
 mod tests {
 	extern crate openssl;
-	use self::openssl::x509::X509;
-	use self::openssl::crypto::hash::{hash, Type};
+	use tests::openssl::x509::X509;
+	use tests::openssl::hash::{hash, MessageDigest};
 	use std::fs::File;
+	use std::io::Read;
 	use super::EIdDonkeyCard;
 	use super::convert_birth_date;
 	use super::copy_vector_to_gender;
@@ -856,7 +856,7 @@ mod tests {
 	#[test]
 	fn test_read_identity() {
 		let ref reader = EIdDonkeyCard::list_readers().unwrap()[0];
-		let eid_card = EIdDonkeyCard::new(reader);
+		let eid_card = EIdDonkeyCard::new_using(reader).unwrap();
 		let identity_res = eid_card.read_identity();
 
 		match identity_res {
@@ -917,7 +917,7 @@ mod tests {
 	#[test]
 	fn test_read_address() {
 		let ref reader = EIdDonkeyCard::list_readers().unwrap()[0];
-		let eid_card = EIdDonkeyCard::new(reader);
+		let eid_card = EIdDonkeyCard::new_using(reader).unwrap();
 		let address_res = eid_card.read_address();
 
 		match address_res {
@@ -947,8 +947,8 @@ mod tests {
 	#[test]
 	fn test_read_address_unsyncronised_access() {
 		let ref reader = EIdDonkeyCard::list_readers().unwrap()[0];
-		let mut eid_card = EIdDonkeyCard::new(reader);
-		let eid_card2 = EIdDonkeyCard::new(reader);
+		let mut eid_card = EIdDonkeyCard::new_using(reader).unwrap();
+		let eid_card2 = EIdDonkeyCard::new_using(reader).unwrap();
 
 		let address_res = eid_card.read_address();
 
@@ -1005,7 +1005,7 @@ mod tests {
 	#[ignore]
 	fn test_verify_command() {
 		let ref reader = EIdDonkeyCard::list_readers().unwrap()[0];
-		let mut eid_card = EIdDonkeyCard::new(reader);
+		let mut eid_card = EIdDonkeyCard::new_using(reader).unwrap();
 		
 		match eid_card.verify(0x01, "1234".to_string())	{
 			Ok(_) => {
@@ -1091,13 +1091,13 @@ mod tests {
 	#[ignore]
 	fn test_sign_verify_authentication() {
 		let data = b"The quick brown fox jumps over the lazy dog";
-		let testhash = hash(Type::SHA256, data);
+		let testhash = hash(MessageDigest::sha256(), data).unwrap();
 
 		let ref reader = EIdDonkeyCard::list_readers().unwrap()[0];
-		let eid_card = EIdDonkeyCard::new(reader);
+		let eid_card = EIdDonkeyCard::new_using(reader).unwrap();
 		// Sign
 		println!("Start signature");
-		let signature_res = eid_card.sign_with_auth_cert("1234".to_string(), &testhash);
+		let signature_res = eid_card.sign_with_auth_cert("1234".to_string(), &testhash.to_vec());
 		match signature_res {
 			Ok(signature) => {
 				// Verify
@@ -1108,7 +1108,9 @@ mod tests {
 				}		
 				println!("]");
 				let mut file = File::open("./testcard_auth.pem").unwrap();
-				let cert: X509 = X509::from_pem(&mut file).unwrap();
+				let mut buffer = Vec::new(); 
+				let n = file.read_to_end(&mut buffer).unwrap();
+				let cert: X509 = X509::from_pem(&mut buffer).unwrap();
 				let verify = cert.public_key().verify(&testhash[..], &signature[..]);
 			},
 			Err(e) => {
