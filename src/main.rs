@@ -381,6 +381,7 @@ fn main() {
 
 	let mut opts = Options::new();
 	opts.optflag("h", "help", "print this help menu");
+	opts.optopt("p", "path", "the path of the URI", "/status");
 	let matches = opts.parse(&args[1..]).unwrap();
 
 	if matches.opt_present("h") {
@@ -388,14 +389,16 @@ fn main() {
 		return;
 	}
 
+	let path = matches.opt_str("p").unwrap();
+
 	init_pincode();
 
 	// Call route handler
-	let mut uri = String::new();
-	io::stdin().read_to_string(&mut uri);
+//	let mut uri = String::new();
+//	io::stdin().read_to_string(&mut uri);
 
-	trace!("Incoming URI [{}]", uri);
-	let split_uri = uri.split("?");
+	trace!("Incoming URI [{}]", path);
+	let split_uri = path.split("?");
 	let parts_uri: Vec<&str> = split_uri.collect();
 	let params = if parts_uri.len() > 1 { parts_uri[1] } else { "" };
 
