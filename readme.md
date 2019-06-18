@@ -12,8 +12,8 @@ The base URL: https://localhost:10443
 
 ###Overvie of API-URLs:
 
-```
 | path | method | explanation |
+|------|--------|-------------|
 | /version | GET | get the version of the API (O.1.0) |
 | /identity | GET | gst the identity information of the person to whom the card belongs to |
 | /address | GET | get the address information of the person to whom the card belongs to |
@@ -25,7 +25,6 @@ The base URL: https://localhost:10443
 | /certificates/rootca| GET | get the root ca certificate |
 | /certificates/ca | GET | get the intermidiate CA to which the certficates |
 | /certificates/rrn | GET | get the certificate of Rijkregister|
-```
 
 DESIGN
 ------
