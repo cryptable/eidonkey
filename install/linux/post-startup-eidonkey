@@ -1,9 +1,0 @@
-#!/bin/bash -x
-# Post startup script to give a signal to import-ca-browser script to import the cacert.crt through renaming it from tmpcacert.crt
-
-mv tmpcacert.crt cacert.crt
-mv tmpcert.crt cert.crt
-
-chmod 444 cert.crt
-chmod 444 cacert.crt
-

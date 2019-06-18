@@ -2,19 +2,29 @@ extern crate serde_json;
 
 use self::serde_json::Value;
 
-use std::process::Command;
-
 pub const PINCODE_OK: u32				= 0;
 pub const PINCODE_CALL_FAILED:u32		= 101;
 pub const PINCODE_DECODE_ERROR:u32		= 102;
 pub const PINCODE_DECODE_UTF8_ERROR:u32	= 103;
 
-pub fn init_pincode() {
+#[link(name = "pincode")]
+extern {
+	fn initPINCode();
+	fn getAuthenticationPINCode(nbrRetries: i32, pincode: *mut u8, len: *mut u64) -> u64;
+	fn getSignaturePINCode(nbrRetries: i32, hash: *const u8, pincode: *mut u8, len: *mut u64) -> u64;
+	fn closePINCode();
+}
 
+pub fn init_pincode() {
+    unsafe {
+    	initPINCode(); 
+    }
 }
 
 pub fn close_pincode() {
-
+    unsafe {
+    	closePINCode(); 
+    }
 }
 
 fn parseJsonResult(jsonData: &str) -> Result<String, u32> {
@@ -37,60 +47,55 @@ fn parseJsonResult(jsonData: &str) -> Result<String, u32> {
 
 pub fn get_pincode_auth(nbr_retries: i32) -> Result<String, u32> {
 	trace!("Retries [{:?}]", nbr_retries);
-	let mut command = Command::new("./pincode");
 
-	if nbr_retries >= 0 {
-		command.args(&["-t", "authentication"]).arg("-r").arg(nbr_retries.to_string());
-	}
-	else {
-		command.args(&["-t", "authentication"]);
-	}
-	let output = command.output();
+	unsafe {
+		let mut size : u64 = 32;
+		let mut ret : u64 = 0;
+		let mut pincode: Vec<u8> = vec![0; size as usize];
 
-	trace!("get_pincode_auth: {:?}", output);
-	match output {
-		Ok(outp) => {
-			let out = String::from_utf8(outp.stdout);
+		trace!("Calling getAuthenticationPINCode()");
+		ret = getAuthenticationPINCode(nbr_retries, pincode.as_mut_ptr(), &mut size);
 
-			match out {
-				Ok(data) => { 
-					trace!("get_pincode_auth: output {:?}", data);
-					parseJsonResult(&data)
-				},
-				Err(_) => Err(PINCODE_DECODE_UTF8_ERROR)
-			}
-		},
-		Err(_) => Err(PINCODE_CALL_FAILED)
+		if ret != PINCODE_OK as u64 {
+			trace!("Calling failed");
+			return Err(PINCODE_CALL_FAILED);
+		}
+		match String::from_utf8(pincode) {
+			Ok(pin) => {
+				trace!("PIN received");
+				return Ok(pin.trim_right_matches(char::from(0)).to_string());
+			},
+			Err(_) => { 
+				trace!("PIN failed");
+				return Err(PINCODE_CALL_FAILED);
+			},
+		}
 	}
 }
 
 pub fn get_pincode_sign(nbr_retries: i32, hash: String) -> Result<String, u32> {
 	trace!("Retries [{:?}]", nbr_retries);
 	trace!("Hash [{:?}]", hash);
-	let mut command = Command::new("./pincode");
 
-	if nbr_retries >= 0 {
-		command.args(&["-t", "signature"]).arg("-h").arg(hash).arg("-r").arg(nbr_retries.to_string());
-	}
-	else {
-		command.args(&["-t", "signature"]).arg("-h").arg(hash);
-	}
-	let output = command.output();
 
-	trace!("get_pincode_sign: {:?}", output);
-	match output {
-		Ok(outp) => {
-			let out = String::from_utf8(outp.stdout);
+	unsafe {
+		let mut size : u64 = 32;
+		let mut ret : u64 = 0;
+		let mut pincode: Vec<u8> = vec![0; size as usize];
 
-			match out {
-				Ok(data) => {
-					trace!("get_pincode_sign: output {:?}", data);
-					parseJsonResult(&data)
-				},
-				Err(_) => Err(PINCODE_DECODE_UTF8_ERROR)
-			}
-		},
-		Err(_) => Err(PINCODE_CALL_FAILED)
+		ret = getSignaturePINCode(nbr_retries, hash.as_ptr(), pincode.as_mut_ptr(), &mut size);
+
+		if ret != PINCODE_OK as u64 {
+			return Err(PINCODE_CALL_FAILED);
+		}
+		match String::from_utf8(pincode) {
+			Ok(pin) => {
+				return Ok(pin.trim_right_matches(char::from(0)).to_string());
+			},
+			Err(_) => { 
+				return Err(PINCODE_CALL_FAILED);
+			},
+		}
 	}
 }
 

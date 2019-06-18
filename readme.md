@@ -37,7 +37,6 @@ TODO
 To compile
 ----------
 - wxWidgets 3.1 development files must be pre installed
-- openssl-1.0.1h development files must be pre installed
 - libpcsclite development files must be pre installed
 - nss certutil from firefox is in binary form in the Git repo
 - clone rust-openssl from ddt-tdd and checkout version 0.7.14.1

@@ -38,6 +38,7 @@ fn main() {
 
 	get_wx_libraries();
 
-	println!("cargo:rustc-link-lib=dylib=stdc++");
-	println!("cargo:rustc-link-search=native={}", dst.display());
+	println!("cargo:rustc-link-lib=dylib=c++");
+    println!("cargo:rustc-link-search=native={}", dst.display());
+    println!("cargo:rustc-link-lib=static=pincode");
 }

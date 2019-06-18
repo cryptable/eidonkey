@@ -165,7 +165,7 @@ fn get_data_len(data: & Vec<u8>, offset: usize) -> (u32, u32) {
 fn copy_vector(data: & Vec<u8>, offset: usize, len: u32) -> Vec<u8> {
 	let mut result: Vec<u8> = Vec::new();
 	let mut i = 0;
-	while i<len {
+	while i<len { 
 		result.push(data[offset + i as usize]);
 		i = i + 1;
 	}
@@ -770,9 +770,9 @@ impl EIdDonkeyCard {
 		sign_cmd.append(&mut copy_data);
 		sign_cmd.push(0x80);
 
-		print!("sign: data [");
+		trace!("sign: data [");
 		for c in sign_cmd.clone() {
-			print!("{:02X}", c);
+			trace!("{:02X}", c);
 		}		
 		trace!("]");
 

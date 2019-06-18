@@ -1,0 +1,9 @@
+{
+  "name": "eidonkey",
+  "description": "This is the eidonkey interface",
+  "path": "$HOME/.eidonkey/eidonkey",
+  "type": "stdio",
+  "allowed_origins": [
+    "chrome-extension://mfpbbgpbaaeimeabinlajngcjnfkjjpj/"
+  ]
+}

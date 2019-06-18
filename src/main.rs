@@ -1,16 +1,24 @@
 #[macro_use]
 extern crate log;
 extern crate env_logger;
-extern crate openssl;
 extern crate getopts;
 extern crate data_encoding;
 extern crate eidonkey;
+extern crate byteorder;
+extern crate bytes;
+extern crate webextension_protocol as protocol;
+extern crate serde_json;
 
+use self::serde_json::Value;
+
+use bytes::Buf;
 use std::io::Write;
 use std::env;
 use std::io::{self, Read};
+use std::process;
 
 use getopts::Options;
+use byteorder::{ByteOrder, LittleEndian};
 
 use data_encoding::{base64, hex};
 
@@ -24,6 +32,7 @@ pub const MISSING_PARAMETERS: u32 		= 0x90020002;
 pub const INCORRECT_PARAMETERS: u32 	= 0x90020003; 
 pub const PINCODE_FAILED: u32 			= 0x90020004; 
 pub const PINCODE_CANCELLED: u32		= 0x90020005; 
+
 
 fn version() -> String {
 	"{\"result\":\"ok\",\"version\":\"0.1.0\"}".to_string()
@@ -217,9 +226,11 @@ fn signature_auth(eid_card: EIdDonkeyCard, params: &str) -> String {
 
 	loop {
 
-		let pincode = get_pincode_sign(5, "Test".to_string()).unwrap();
+		let pincode = get_pincode_auth(5).unwrap();
 
-		if pincode.len() == 0 {
+		trace!("PIN length [{:?}]", pincode.len());
+		
+		if pincode.len() != 0 {
 			trace!("signature_auth: Authentication of [{:?}]", vec_params[1]);
 			let data_res = hex::decode(vec_params[1].to_uppercase().as_bytes());
 			match data_res {
@@ -262,7 +273,7 @@ fn signature_sign(eid_card: EIdDonkeyCard, params: &str) -> String {
 
 		let pincode = get_pincode_sign(5, "Test".to_string()).unwrap();
 
-		if pincode.len() == 0 {
+		if pincode.len() != 0 {
 			trace!("signature_sign: Signing of [{:?}]", vec_params[1]);
 			let data_res = hex::decode(vec_params[1].to_uppercase().as_bytes());
 			match data_res {
@@ -292,78 +303,83 @@ fn signature_sign(eid_card: EIdDonkeyCard, params: &str) -> String {
 	}
 }
 
-fn call_route_get_handler(uri: &str, params: &str) -> Option<Vec<u8>> {
+fn call_route_get_handler(uri: &str, params: &str) -> Option<String> {
 
-  trace!("Handling /{} request", uri);
+  	trace!("Handling [{}] request", uri);
 	match uri {
-	    "/version" => Some(version().into_bytes()),
+	    "/version" => {
+	    	Some(version())
+	    },
 	    "/identity" => { 
 	    	match connect_card() {
-		    	Ok(card) => Some(identity(card).into_bytes()),
-		    	Err(e) => Some(error_card_response(e).into_bytes())
+		    	Ok(card) => Some(identity(card)),
+		    	Err(e) => Some(error_card_response(e))
 	    	}
 	    },
 	    "/address" => {
 	    	match connect_card() {
-	    		Ok(card) => Some(address(card).into_bytes()),
-		    	Err(e) => Some(error_card_response(e).into_bytes())
+	    		Ok(card) => Some(address(card)),
+		    	Err(e) => Some(error_card_response(e))
 	    	}
 	    },
 	    "/photo" => {
 	    	match connect_card() {
-	    		Ok(card) => Some(photo(card).into_bytes()),
-		    	Err(e) => Some(error_card_response(e).into_bytes())
+	    		Ok(card) => Some(photo(card)),
+		    	Err(e) => Some(error_card_response(e))
 	    	} 	
 	    },
 	    "/status" => {
 	    	match connect_card() {
-	    		Ok(card) => Some(status(card).into_bytes()),
-		    	Err(e) => Some(error_card_response(e).into_bytes())
+	    		Ok(card) => Some(status(card)),
+		    	Err(e) => Some(error_card_response(e))
 	    	}	    	
 	    },
 	    "/signature/authentication" => {
 	    	match connect_card() {
-	    		Ok(card) => Some(signature_auth(card, params).into_bytes()),
-		    	Err(e) => Some(error_card_response(e).into_bytes())
+	    		Ok(card) => Some(signature_auth(card, params)),
+		    	Err(e) => Some(error_card_response(e))
 	    	}
 	    },
 	    "/signature/signing" => {
 	    	match connect_card() {
-	    		Ok(card) => Some(signature_sign(card, params).into_bytes()),
-		    	Err(e) => Some(error_card_response(e).into_bytes())
+	    		Ok(card) => Some(signature_sign(card, params)),
+		    	Err(e) => Some(error_card_response(e))
 	    	}
 	    },
 	    "/certificates/authentication" => {
 	    	match connect_card() {
-	    		Ok(card) => Some(certificates_authentication(card).into_bytes()),
-		    	Err(e) => Some(error_card_response(e).into_bytes())
+	    		Ok(card) => Some(certificates_authentication(card)),
+		    	Err(e) => Some(error_card_response(e))
 	    	}
 	    },
 	    "/certificates/signing" => {
 	    	match connect_card() {
-	    		Ok(card) => Some(certificates_signing(card).into_bytes()),
-		    	Err(e) => Some(error_card_response(e).into_bytes())
+	    		Ok(card) => Some(certificates_signing(card)),
+		    	Err(e) => Some(error_card_response(e))
 	    	}
 	    },
 	    "/certificates/rootca" => {
 	    	match connect_card() {
-	    		Ok(card) => Some(certificates_rootca(card).into_bytes()),
-		    	Err(e) => Some(error_card_response(e).into_bytes())
+	    		Ok(card) => Some(certificates_rootca(card)),
+		    	Err(e) => Some(error_card_response(e))
 	    	}
 	    },
 	    "/certificates/ca" => {
 	    	match connect_card() {
-	    		Ok(card) => Some(certificates_ca(card).into_bytes()),
-		    	Err(e) => Some(error_card_response(e).into_bytes())
+	    		Ok(card) => Some(certificates_ca(card)),
+		    	Err(e) => Some(error_card_response(e))
 	    	}
 	    },
 	    "/certificates/rrn" => {
 	    	match connect_card() {
-	    		Ok(card) => Some(certificates_rrn(card).into_bytes()),
-		    	Err(e) => Some(error_card_response(e).into_bytes())
+	    		Ok(card) => Some(certificates_rrn(card)),
+		    	Err(e) => Some(error_card_response(e))
 	    	}
 	    },
-	    _ => None,
+	    _ => {
+	    	trace!("calling unknown [{:X?}]", uri);
+	    	None
+	    },
 	}
 }
 
@@ -371,6 +387,56 @@ fn call_route_get_handler(uri: &str, params: &str) -> Option<Vec<u8>> {
 fn print_usage(program: &str, opts: Options) {
 	let brief = format!("Usage: {} [options]", program);
 	print!("{}", opts.usage(&brief));
+}
+
+const MAX_NATIVE_MSG_SIZE: u32 = 4*1024^3;
+
+fn parseJson(jsonData: &str) -> String {
+	let result : Value = serde_json::from_str(jsonData).unwrap();
+
+	let result_data = result.find("path").unwrap().as_str().unwrap();
+	trace!("Decoding result_data: {:?}", result_data);
+
+	result_data.to_string()
+}
+
+fn io_loop() {
+	init_pincode();
+
+	loop {
+
+		trace!("Waiting for data");
+		let message = match protocol::read_stdin() {
+            Ok(m) => m,
+            Err(_) => process::exit(1),
+        };
+		trace!("parsing data");
+
+
+		trace!("parsing data");
+		let path = parseJson(&message);
+		
+		trace!("Incoming URI [{}]", path.trim_end());
+
+		let split_uri = path.split("?");
+		let parts_uri: Vec<&str> = split_uri.collect();
+		let params = if parts_uri.len() > 1 { parts_uri[1] } else { "" };
+
+		let body = call_route_get_handler(parts_uri[0], params);
+		match body {
+		 	Some(ref data) => {
+				trace!("Response [{:?} : {:?}]", data.len(), data);
+		 		protocol::write_stdout(data.to_string());
+			},
+			None => {
+				let error_buf = "{ error: 'error'}".to_string();
+				trace!("Response [{}]", error_buf);
+		 		protocol::write_stdout(error_buf);
+			}
+		}
+		trace!("Sending done");
+	}
+	close_pincode();
 }
 
 fn main() {
@@ -389,33 +455,34 @@ fn main() {
 		return;
 	}
 
-	let path = matches.opt_str("p").unwrap();
+	if matches.opt_present("p") {
+		init_pincode();
+		let mut path = matches.opt_str("p").unwrap();
 
-	init_pincode();
+		let split_uri = path.split("?");
+		let parts_uri: Vec<&str> = split_uri.collect();
+		let params = if parts_uri.len() > 1 { parts_uri[1] } else { "" };
 
-	// Call route handler
-//	let mut uri = String::new();
-//	io::stdin().read_to_string(&mut uri);
-
-	trace!("Incoming URI [{}]", path);
-	let split_uri = path.split("?");
-	let parts_uri: Vec<&str> = split_uri.collect();
-	let params = if parts_uri.len() > 1 { parts_uri[1] } else { "" };
-
-	let stdout = io::stdout();
-	let mut handle = stdout.lock();
-
-	let body = call_route_get_handler(parts_uri[0], params);
-	match body {
-	 	Some(ref data) => {
-
-			handle.write(data);
-		},
-		None => {
-			handle.write(b"{ error: 'error'}");			
+		let body = call_route_get_handler(parts_uri[0], params);
+		match body {
+		 	Some(ref data) => {
+				trace!("Response [{:?} : {:?}]", data.len(), data);
+		 		println!("{}", data.to_string());
+			},
+			None => {
+				let error_buf = "{ error: 'error'}".to_string();
+				trace!("Response [{}]", error_buf);
+		 		println!("{}", error_buf);
+			}
 		}
+		close_pincode();
+	}
+	else {
+	    io_loop();
 	}
 
-	
-	close_pincode();
 }
+
+// Testing
+// /signature/authentication?data=0630d3ce19076378e28072be7e574473edad11efc149eaa1ee551932c8176ac6
+// /signature/signing?data=0630d3ce19076378e28072be7e574473edad11efc149eaa1ee551932c8176ac6

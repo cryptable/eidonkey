@@ -1,0 +1,25 @@
+{
+  // Extension ID: knldjmfmopnpolahpmmgbagdohdnhkik
+  "name": "Eidonkey companion",
+  "version": "1.0",
+  "manifest_version": 2,
+  "description": "Send a message to Eidonkey.",
+  "app": {
+    "launch": {
+      "local_path": "eidonkey.html"
+    }
+  },
+  "background": {
+    "scripts": ["background.js"],
+    "persistent": false
+  },
+  "icons": {
+    "128": "icon.png"
+  },
+  "permissions": [
+    "nativeMessaging"
+  ],
+  "externally_connectable": {
+    "matches": ["http://cryptable-local.org/*", "https://cryptable-local.org/*"]
+  }
+}

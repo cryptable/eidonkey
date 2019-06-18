@@ -85,7 +85,7 @@ void initPINCode(void) {
 	wxGetApp().CallOnInit();
 }
 
-unsigned long getAuthenticationPINCode(unsigned int nbrRetries, char *pincode, unsigned long *len) {
+unsigned long getAuthenticationPINCode(int nbrRetries, char *pincode, unsigned long *len) {
 	wxString wx_pincode= "";
 
 	if ((*len == 0)||(pincode == NULL)) {
@@ -114,7 +114,7 @@ unsigned long getAuthenticationPINCode(unsigned int nbrRetries, char *pincode, u
 	return PINCODE_OK;
 }
 
-unsigned long getSignaturePINCode(unsigned int nbrRetries, char *hash, char *pincode, unsigned long *len) {
+unsigned long getSignaturePINCode(int nbrRetries, char *hash, char *pincode, unsigned long *len) {
 	wxString wx_pincode= "";
 
 	if ((*len == 0)||(pincode == NULL)) {

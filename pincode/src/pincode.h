@@ -10,8 +10,8 @@
 extern "C" {
 #endif
 	void initPINCode(void);
-	unsigned long getAuthenticationPINCode(unsigned int nbrRetries, char *pincode, unsigned long *len);
-	unsigned long getSignaturePINCode(unsigned int nbrRetries, char *hash, char *pincode, unsigned long *len);
+	unsigned long getAuthenticationPINCode(int nbrRetries, char *pincode, unsigned long *len);
+	unsigned long getSignaturePINCode(int nbrRetries, char *hash, char *pincode, unsigned long *len);
 	void closePINCode(void);
 #ifdef __cplusplus
 }

@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Test</title>
+  <script src="jquery-3.4.1.min.js"></script>
+
+</head>
+<body>
+	<h3> Native Messaging </h3>
+	<pre id="response"></pre>
+
+    <script>
+//	$( document ).ready(function() {
+		var port = chrome.runtime.connectNative('com.my_company.my_application');
+
+		port.onMessage.addListener(function(msg) {
+  			console.log("Received" + msg);
+		});
+
+		port.onDisconnect.addListener(function() {
+  			console.log("Disconnected");
+		});
+
+		port.postMessage("/version");
+//	});
+    </script>
+</body>
+</html>
