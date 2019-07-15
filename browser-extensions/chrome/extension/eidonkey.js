@@ -18,6 +18,7 @@ function onNativeMessage(message) {
   } else {
     appendMessage("Received message: <b>" + JSON.stringify(message) + "</b>");
   }
+  return true;
 }
 
 document.addEventListener('DOMContentLoaded', function () {

@@ -1,12 +1,16 @@
-function sendManualMessage(message, sendResponse) {
-  chrome.runtime.sendNativeMessage("eidonkey", message, sendResponse);
-//  appendMessage("Sent message: <b>" + JSON.stringify(message) + "</b>");
-}
 
 chrome.runtime.onMessageExternal.addListener(
-	function(request, sender, sendResponse) {
-		console.log("Message received " + request);
+	(request, sender, sendResponse) => {
+		console.log("Message received " + request.path);
 		if (request.path) {
-			sendManualMessage(request, sendResponse);        
-	} 
-});
+			chrome.runtime.sendNativeMessage("eidonkey", request, function(resp) {
+				console.log("Message received " + resp);
+				sendResponse(resp);
+			});
+		}
+		else {
+			sendResponse("{error}");
+		}
+		return true;
+	}
+);
