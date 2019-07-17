@@ -17,7 +17,10 @@ const SIGN_KEYID: u8 = 0x83;
 
 const SHA1_PSS: u8 = 0x10;
 const SHA256_PSS: u8 = 0x20;
-const PKCS1: u8 = 0x01; 
+const PKCS1: u8 = 0x01;
+const PKCS1_SHA1: u8 = 0x02; 
+const PKCS1_MD5: u8 = 0x04; 
+const PKCS1_SHA256: u8 = 0x08; 
 
 static IDENTITY_FILE_ID: &'static[u8]		= &[0x00, 0xA4, 0x08, 0x0C, 0x06, 0x3F, 0x00, 0xDF, 0x01, 0x40, 0x31];
 static IDENTITY_SIGN_FILE_ID: &'static[u8] 	= &[0x00, 0xA4, 0x08, 0x0C, 0x06, 0x3F, 0x00, 0xDF, 0x01, 0x40, 0x32];
@@ -802,7 +805,7 @@ impl EIdDonkeyCard {
 	pub fn sign_with_auth_cert(&self, pincode: String, data: & Vec<u8>) -> Result< (Vec<u8>), u32> {
 
 		trace!("sign_with_auth_cert: enter PIN {}", pincode);
-		let mut res = self.select(PKCS1, AUTH_KEYID);
+		let mut res = self.select(PKCS1_SHA1, AUTH_KEYID);
 		match res {
 			Ok(_) => {
 				trace!("sign_with_auth_cert: select Authentication Key succeeded");
@@ -822,7 +825,7 @@ impl EIdDonkeyCard {
 	pub fn sign_with_sign_cert(&self, pincode: String, data: & Vec<u8>) -> Result< (Vec<u8>), u32> {
 
 		trace!("sign_with_sign_cert: enter PIN {}", pincode);
-		let mut res = self.select(PKCS1, SIGN_KEYID);
+		let mut res = self.select(PKCS1_SHA1, SIGN_KEYID);
 
 		match res {
 			Ok(_) => {

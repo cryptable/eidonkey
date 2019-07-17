@@ -32,6 +32,7 @@ pub const MISSING_PARAMETERS: u32 		= 0x90020002;
 pub const INCORRECT_PARAMETERS: u32 	= 0x90020003; 
 pub const PINCODE_FAILED: u32 			= 0x90020004; 
 pub const PINCODE_CANCELLED: u32		= 0x90020005; 
+pub const UNKNOWN_PATH: u32				= 0x90020006; 
 
 
 fn version() -> String {
@@ -429,7 +430,7 @@ fn io_loop() {
 		 		protocol::write_stdout(data.to_string());
 			},
 			None => {
-				let error_buf = "{ error: 'error'}".to_string();
+				let error_buf = error_response_with_msg(UNKNOWN_PATH, "Unknown path!".to_string());
 				trace!("Response [{}]", error_buf);
 		 		protocol::write_stdout(error_buf);
 			}
@@ -470,7 +471,7 @@ fn main() {
 		 		println!("{}", data.to_string());
 			},
 			None => {
-				let error_buf = "{ error: 'error'}".to_string();
+				let error_buf = error_response_with_msg(UNKNOWN_PATH, "Unknown path!".to_string());
 				trace!("Response [{}]", error_buf);
 		 		println!("{}", error_buf);
 			}
